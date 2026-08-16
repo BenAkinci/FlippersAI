@@ -1,0 +1,53 @@
+.workflow-browser-controls{position:absolute;top:20px;right:20px;z-index:6;display:flex;align-items:center;gap:6px}
+.workflow-browser-arrow{width:34px;height:34px;border-radius:10px;border:1px solid #DDD5CB;background:#fff;color:#4F4A45;display:grid;place-items:center;transition:.14s ease;box-shadow:0 2px 7px rgba(44,31,18,.035)}
+.workflow-browser-arrow:hover:not(:disabled){background:#FFF7ED;border-color:#E5B680;color:#B65E10;transform:translateY(-1px)}
+.workflow-browser-arrow:disabled{opacity:.3;cursor:default}
+.workflow-browser-position{font-size:11px;color:#81786F;min-width:46px;text-align:center;font-weight:720}
+.workflow-card.browser-browsing .workflow-topline{padding-right:104px}
+.workflow-step-preview{margin-top:2px;padding-top:4px}
+.workflow-card.browser-browsing>.step-copy,.workflow-card.browser-browsing>.decision-card,.workflow-card.browser-browsing>.step-action,.workflow-card.browser-browsing>.workflow-secondary{display:none!important}
+.workflow-card.browser-browsing>.journey-details{margin-top:22px}
+.workflow-preview-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;padding:2px 0 8px}
+.workflow-preview-kicker{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.workflow-preview-kicker .eyebrow{margin:0}
+.workflow-preview-state{border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800;letter-spacing:.035em;text-transform:uppercase}
+.workflow-preview-state.completed{background:#EEF6F2;color:#23614F}
+.workflow-preview-state.current{background:#FFF3E6;color:#8B4A10}
+.workflow-preview-state.future{background:#F2F1EF;color:#8B8884}
+.workflow-preview-head h3{font-size:28px;letter-spacing:-.035em;margin:5px 0 7px}
+.workflow-preview-head p{font-size:15px;line-height:1.5;color:#77706A;margin:0;max-width:760px}
+.workflow-preview-locked{margin-top:17px;border:1px solid #E5E1DC;background:#F6F5F3;border-radius:14px;padding:17px 18px;display:flex;gap:12px;align-items:flex-start;color:#85817C}
+.workflow-preview-locked svg{flex:0 0 auto;margin-top:1px}
+.workflow-preview-locked strong{display:block;color:#5A5651;margin-bottom:3px}
+.workflow-preview-locked p{margin:0;font-size:13px;line-height:1.45}
+.workflow-saved{margin-top:18px;border:1px solid #E8E1D8;border-radius:15px;background:#FFFDFC;overflow:hidden}
+.workflow-saved-title{padding:11px 14px;border-bottom:1px solid #EEE7DE;background:#FBF7F1;font-size:10px;letter-spacing:.09em;font-weight:820;color:#877B6D;text-transform:uppercase}
+.workflow-saved-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.workflow-saved-field{padding:12px 14px;border-bottom:1px solid #EEE9E3;min-width:0}
+.workflow-saved-field:nth-child(odd){border-right:1px solid #EEE9E3}
+.workflow-saved-field.full{grid-column:1/-1;border-right:0!important}
+.workflow-saved-field span{display:block;font-size:9px;letter-spacing:.075em;font-weight:800;color:#958A7E;text-transform:uppercase;margin-bottom:3px}
+.workflow-saved-field strong,.workflow-saved-field p{display:block;margin:0;font-size:13px;color:#302E2B;line-height:1.45;overflow-wrap:anywhere}
+.workflow-saved-field p{font-weight:500;color:#5E5953;white-space:pre-wrap}
+.workflow-preview-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:15px}
+.workflow-edit-note{font-size:11px;color:#87817A;line-height:1.4}
+.workflow-review-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:22px}
+.workflow-review-backdrop{position:absolute;inset:0;background:rgba(15,13,11,.42);backdrop-filter:blur(3px)}
+.workflow-review-card{position:relative;width:min(680px,100%);max-height:min(780px,calc(100vh - 44px));overflow:auto;background:#fff;border:1px solid #DDD4CA;border-radius:20px;box-shadow:0 28px 80px rgba(28,20,13,.24);padding:22px}
+.workflow-review-close{position:absolute;right:14px;top:14px;border:0;background:#F6F2ED;width:34px;height:34px;border-radius:9px;color:#5E5750;font-size:20px;line-height:1}
+.workflow-review-card h2{font-size:27px;letter-spacing:-.035em;margin:4px 42px 5px 0}
+.workflow-review-card>p{color:#777069;margin:0 0 18px;font-size:13px}
+.workflow-review-card .review-warning{border:1px solid #F0D4B4;background:#FFF7ED;color:#704317;border-radius:11px;padding:10px 12px;font-size:12px;line-height:1.45}
+.workflow-review-card .review-info{border:1px solid #D7E7EF;background:#EAF4F9;color:#345566;border-radius:11px;padding:10px 12px;font-size:12px;line-height:1.45}
+.workflow-review-card .form-stack{margin-top:14px}
+.workflow-review-card .button-row{margin-top:3px}
+.workflow-browser-toast{position:fixed;z-index:1200;left:50%;bottom:24px;transform:translateX(-50%);background:#111214;color:#fff;border-radius:10px;padding:10px 14px;font-size:12px;box-shadow:0 16px 44px rgba(0,0,0,.22)}
+@media(max-width:700px){
+  .workflow-browser-controls{top:17px;right:16px}
+  .workflow-browser-position{display:none}
+  .workflow-card.browser-browsing .workflow-topline{padding-right:80px}
+  .workflow-preview-head h3{font-size:23px}
+  .workflow-saved-grid{grid-template-columns:1fr}
+  .workflow-saved-field,.workflow-saved-field:nth-child(odd){grid-column:1;border-right:0}
+  .workflow-review-card{padding:19px 16px;border-radius:17px}
+}

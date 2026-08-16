@@ -1,0 +1,68 @@
+:root{
+  --brand-orange:#F28C28;
+  --brand-orange-deep:#E37818;
+  --brand-orange-soft:#FFF3E6;
+  --brand-black:#111214;
+  --brand-white:#FFFFFF;
+  --brand-warm:#FBF9F6;
+  --brand-line:#E8E1D8;
+  --brand-ice:#EAF4F9;
+  --brand-ice-line:#D7E7EF;
+  --brand-green:#078A64;
+  --brand-red:#B94840;
+  --bg:var(--brand-warm);
+  --ink:var(--brand-black);
+  --line:var(--brand-line);
+  --soft:#F7F3EE;
+  --amber:#B86614;
+  --amber-soft:var(--brand-orange-soft);
+}
+html,body{background:var(--brand-warm)}
+.topbar{background:rgba(251,249,246,.95);border-color:var(--brand-line)}
+.content{background:transparent}
+.brand-mark{
+  background:transparent url('./brand-logo.svg') center/100% 100% no-repeat!important;
+  box-shadow:0 5px 18px rgba(242,140,40,.18);
+}
+.brand-mark>.ico,.brand-mark>svg{opacity:0!important}
+.brand{color:var(--brand-black)}
+.avatar{background:var(--brand-black);box-shadow:0 0 0 2px var(--brand-warm),0 0 0 3px rgba(242,140,40,.55)}
+.desktop-nav-item:hover{background:#F5EFE8}
+.desktop-nav-item.active{background:var(--brand-orange-soft);color:var(--brand-black)}
+.desktop-nav-item.active .ico{stroke:var(--brand-orange-deep)}
+.mobile-nav-item.active{color:var(--brand-orange-deep)}
+.button.primary{
+  background:var(--brand-orange);
+  border-color:var(--brand-orange);
+  color:var(--brand-black);
+  box-shadow:0 3px 9px rgba(242,140,40,.2);
+}
+.button.primary:hover{background:var(--brand-orange-deep);border-color:var(--brand-orange-deep);color:#111;box-shadow:0 6px 16px rgba(227,120,24,.23)}
+.button.secondary{background:#fff;border-color:#DDD5CB}
+.button.secondary:hover{background:#FFFCF8;border-color:#CABCAA}
+.focused-card,.card,.deal-card,.metric-card,.inventory-list,.opportunity-list,.transaction-list,.lesson,.bankroll-strip{border-color:var(--brand-line)}
+.focused-card{box-shadow:0 14px 45px rgba(38,28,18,.035)}
+.eyebrow{color:#81766A}
+.next-icon,.scan-icon{background:var(--brand-orange)!important;color:var(--brand-black)!important}
+.stage-pill{background:var(--brand-orange-soft);color:#7B4B17;border:1px solid #F3DEC5}
+.progress-track{background:#ECE7E0}
+.progress-track span{background:linear-gradient(90deg,var(--brand-orange),#F7A547)}
+.workflow-card{position:relative;background:linear-gradient(180deg,#fff 0%,#FFFEFC 100%)}
+.journey-row.done .journey-dot{background:var(--brand-black);border-color:var(--brand-black)}
+.journey-row.current .journey-dot{border-color:var(--brand-orange-deep);color:var(--brand-orange-deep)}
+.question-num,.seller-question-number{background:var(--brand-orange-soft)!important;color:#844B12!important}
+.decision-copy-section li:before,.copy-section li:before{color:var(--brand-orange-deep)!important}
+input:focus,textarea:focus,select:focus{border-color:#D7904B;box-shadow:0 0 0 3px rgba(242,140,40,.11)}
+.notice.neutral,.analyser-note{background:var(--brand-ice)!important;border-color:var(--brand-ice-line)!important;color:#345566!important}
+.bankroll-strip>span .ico{stroke:var(--brand-orange-deep)}
+.metric-card{background:linear-gradient(180deg,#fff,#FFFEFC)}
+.metric-top .ico{stroke:#9A8772}
+.account-popover{border-color:var(--brand-line);box-shadow:0 22px 60px rgba(41,29,17,.13)}
+.guidance-switch{background:#F4EFE9}
+.guidance-switch button.active{box-shadow:0 1px 7px rgba(72,42,15,.08)}
+.platform-toolbar,.platform-modal-card{border-color:var(--brand-line)!important}
+.notification-button span{background:var(--brand-orange)!important;color:var(--brand-black)!important}
+@media(max-width:720px){
+  .topbar{background:rgba(251,249,246,.97)}
+  .mobile-nav{background:rgba(251,249,246,.98);border-color:var(--brand-line)}
+}
