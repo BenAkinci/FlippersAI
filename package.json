@@ -1,8 +1,8 @@
 {
   "name": "flippersai",
   "private": true,
-  "version": "0.11.0",
+  "version": "0.20.0",
   "scripts": {
-    "build": "rm -rf public && mkdir -p public && cp index.html app.js styles.css public/"
+    "build": "rm -rf public && mkdir -p public && cp index.html app.js styles.css community.js community.css public/"
   }
 }
