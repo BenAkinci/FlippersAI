@@ -1,9 +1,9 @@
 {
   "name": "flippersai",
   "private": true,
-  "version": "0.40.0",
+  "version": "0.50.0",
   "scripts": {
-    "build": "rm -rf public && mkdir -p public && cp index.html app.js styles.css community.js community.css platform.js platform.css ux-fixes.js ux-fixes.css public/",
+    "build": "rm -rf public && mkdir -p public && cp index.html app.js styles.css community.js community.css platform.js platform.css ux-fixes.js ux-fixes.css brand.css brand-logo.svg workflow-browser.js workflow-browser.css public/",
     "check:extension": "node --check extension/service-worker.js && node --check extension/content.js && node --check extension/api.js && node --check extension/config.js && node --check extension/app.js",
     "package:extension": "rm -f flippersai-extension.zip && cd extension && zip -r ../flippersai-extension.zip ."
   }
