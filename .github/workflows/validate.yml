@@ -1,0 +1,17 @@
+name: Validate frontend
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check app.js
+      - run: npm run build
+      - run: test -f public/index.html && test -f public/app.js && test -f public/styles.css
