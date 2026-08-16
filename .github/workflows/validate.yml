@@ -16,5 +16,7 @@ jobs:
       - run: node --check community.js
       - run: node --check platform.js
       - run: node --check ux-fixes.js
+      - run: npm run check:extension
       - run: npm run build
       - run: test -f public/index.html && test -f public/app.js && test -f public/styles.css && test -f public/community.js && test -f public/community.css && test -f public/platform.js && test -f public/platform.css && test -f public/ux-fixes.js && test -f public/ux-fixes.css
+      - run: test -f extension/manifest.json && test -f extension/sidepanel.html && test -f extension/workspace.html && test -f extension/service-worker.js && test -f extension/content.js && test -f extension/api.js && test -f extension/app.js && test -f extension/styles.css
