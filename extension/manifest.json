@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "FlippersAI — Reseller Workspace",
+  "version": "0.40.0",
+  "description": "Scan authenticated marketplace listings and run the FlippersAI buying and selling workflow without leaving the page.",
+  "minimum_chrome_version": "114",
+  "permissions": [
+    "activeTab",
+    "sidePanel",
+    "scripting",
+    "storage",
+    "tabs",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://msmpigerejpxepkylkxz.supabase.co/*",
+    "https://*.facebook.com/*",
+    "https://*.fbcdn.net/*",
+    "https://*.ebay.com.au/*",
+    "https://*.gumtree.com.au/*",
+    "https://*.depop.com/*",
+    "https://whattheflip-adz.pages.dev/*",
+    "https://*.whattheflip-adz.pages.dev/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open FlippersAI"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.facebook.com/*",
+        "https://*.ebay.com.au/*",
+        "https://*.gumtree.com.au/*",
+        "https://*.depop.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

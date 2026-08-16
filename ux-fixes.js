@@ -205,11 +205,38 @@ function tidyWorkflowCopy(){
   block.dataset.tidied='1'
 }
 
+let handoffDone=false
+let handoffNavRequested=false
+function resolveExtensionHandoff(){
+  if(handoffDone) return
+  const params=new URLSearchParams(location.search)
+  const workflow=params.get('workflow')
+  if(!workflow) return
+
+  let target=null
+  try{target=document.querySelector(`[data-workflow="${CSS.escape(workflow)}"]`)}catch{}
+  if(target){
+    handoffDone=true
+    target.click()
+    const cleanUrl=`${location.pathname}${location.hash||''}`
+    history.replaceState({},'',cleanUrl)
+    return
+  }
+
+  const dealsNav=$('[data-nav="deals"]')
+  if(dealsNav && !dealsNav.classList.contains('active') && !handoffNavRequested){
+    handoffNavRequested=true
+    dealsNav.click()
+    setTimeout(()=>{handoffNavRequested=false},500)
+  }
+}
+
 function apply(){
   dedupePlatformEnhancements()
   formatDecisionCards()
   simplifySellerQuestions()
   tidyWorkflowCopy()
+  resolveExtensionHandoff()
 }
 
 let timer
