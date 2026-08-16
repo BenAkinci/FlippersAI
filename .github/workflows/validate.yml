@@ -18,6 +18,19 @@ jobs:
       - run: node --check ux-fixes.js
       - run: node --check workflow-browser.js
       - run: npm run check:extension
+      - name: Parse Chrome workspace module
+        run: |
+          node --input-type=module - <<'NODE'
+          try {
+            await import(`file://${process.cwd()}/extension/app.js?verify=${Date.now()}`)
+          } catch (error) {
+            if (error instanceof SyntaxError) {
+              console.error(error)
+              process.exit(1)
+            }
+            console.log(`Extension parsed successfully; expected browser-runtime stop: ${error.name}`)
+          }
+          NODE
       - run: npm run build
       - run: test -f public/index.html && test -f public/app.js && test -f public/styles.css && test -f public/community.js && test -f public/community.css && test -f public/platform.js && test -f public/platform.css && test -f public/ux-fixes.js && test -f public/ux-fixes.css && test -f public/brand.css && test -f public/brand-logo.svg && test -f public/workflow-browser.js && test -f public/workflow-browser.css
       - run: test -f extension/manifest.json && test -f extension/sidepanel.html && test -f extension/workspace.html && test -f extension/service-worker.js && test -f extension/content.js && test -f extension/api.js && test -f extension/app.js && test -f extension/styles.css && test -f extension/brand.css && test -f extension/brand-logo.svg
