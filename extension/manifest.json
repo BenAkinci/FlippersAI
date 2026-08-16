@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.60.0",
-  "description": "Scan authenticated marketplace listings, scout multiple opportunities and run the FlippersAI buying and selling workflow without leaving the page.",
+  "version": "0.61.0",
+  "description": "Scan authenticated marketplace listings, intelligently separate mixed results, scout multiple opportunities and run the FlippersAI buying and selling workflow without leaving the page.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
