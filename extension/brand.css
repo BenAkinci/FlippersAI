@@ -28,9 +28,11 @@ html,body,.ext-shell{
   border-color:var(--brand-ice-line);
   backdrop-filter:blur(16px);
 }
-.brand{color:var(--brand-charcoal)}
+.brand{color:var(--brand-charcoal);font-weight:780;letter-spacing:-.035em}
 .brand-mark{
-  background:transparent url('./brand-logo.svg') center/100% 100% no-repeat!important;
+  background:#fff url('./brand-logo.svg') center/78% 78% no-repeat!important;
+  border:1px solid var(--brand-ice-line);
+  border-radius:10px;
   box-shadow:0 7px 20px rgba(44,103,131,.10);
 }
 .brand-mark>svg{opacity:0!important}
