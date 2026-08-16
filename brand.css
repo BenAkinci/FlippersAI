@@ -32,12 +32,19 @@ html,body{
   box-shadow:0 1px 0 rgba(33,74,94,.02);
 }
 .content{background:transparent}
+.brand{
+  color:var(--brand-charcoal);
+  font-weight:780;
+  letter-spacing:-.035em;
+}
 .brand-mark{
-  background:transparent url('./brand-logo.svg') center/100% 100% no-repeat!important;
+  background:#fff url('./brand-logo.svg?v=0.52.0') center/78% 78% no-repeat!important;
+  border:1px solid var(--brand-ice-line);
+  border-radius:11px;
   box-shadow:0 7px 22px rgba(61,123,151,.10);
 }
+.brand-large .brand-mark{background-size:76% 76%!important}
 .brand-mark>.ico,.brand-mark>svg{opacity:0!important}
-.brand{color:var(--brand-charcoal)}
 .avatar{
   background:var(--brand-charcoal);
   color:#fff;

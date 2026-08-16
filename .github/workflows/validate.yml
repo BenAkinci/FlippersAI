@@ -32,8 +32,8 @@ jobs:
           }
           NODE
       - run: npm run build
-      - run: test -f public/index.html && test -f public/app.js && test -f public/styles.css && test -f public/community.js && test -f public/community.css && test -f public/platform.js && test -f public/platform.css && test -f public/ux-fixes.js && test -f public/ux-fixes.css && test -f public/brand.css && test -f public/brand-logo.svg && test -f public/workflow-browser.js && test -f public/workflow-browser.css
-      - run: test -f extension/manifest.json && test -f extension/sidepanel.html && test -f extension/workspace.html && test -f extension/service-worker.js && test -f extension/content.js && test -f extension/api.js && test -f extension/app.js && test -f extension/styles.css && test -f extension/brand.css && test -f extension/brand-logo.svg
+      - run: test -f public/index.html && test -f public/app.js && test -f public/styles.css && test -f public/community.js && test -f public/community.css && test -f public/platform.js && test -f public/platform.css && test -f public/ux-fixes.js && test -f public/ux-fixes.css && test -f public/brand.css && test -f public/brand-logo.svg && test -f public/brand-app-icon.svg && test -f public/brand-icon-180.png && test -f public/brand-icon-192.png && test -f public/site.webmanifest && test -f public/workflow-browser.js && test -f public/workflow-browser.css
+      - run: test -f extension/manifest.json && test -f extension/sidepanel.html && test -f extension/workspace.html && test -f extension/service-worker.js && test -f extension/content.js && test -f extension/api.js && test -f extension/app.js && test -f extension/styles.css && test -f extension/brand.css && test -f extension/brand-logo.svg && test -f extension/brand-app-icon.svg && test -f extension/icons/icon16.png && test -f extension/icons/icon32.png && test -f extension/icons/icon48.png && test -f extension/icons/icon128.png
       - run: npm run package:extension
       - uses: actions/upload-artifact@v4
         with:
