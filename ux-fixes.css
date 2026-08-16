@@ -1,0 +1,30 @@
+.decision-summary-structured{display:block!important;max-width:900px!important}
+.decision-summary-structured .decision-intro{display:block;font-size:17px;line-height:1.45;font-weight:650;margin-bottom:12px}
+.decision-summary-structured ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.decision-summary-structured li{position:relative;padding:9px 12px 9px 30px;border:1px solid #ece7df;border-radius:9px;background:#fff;font-size:13px;line-height:1.45;font-weight:550;color:#37332f}
+.decision-summary-structured li:before{content:'•';position:absolute;left:13px;top:7px;font-size:18px;color:#a57c45}
+.decision-card .decision-head{align-items:flex-start}
+.decision-card .decision-head>div:first-child{min-width:0;flex:1}
+
+.step-copy p>span{display:block;margin-bottom:8px}
+.step-copy p ul{margin:8px 0 0;padding-left:19px;display:grid;gap:5px}
+.step-copy p li{padding-left:2px}
+
+.seller-question-list{display:grid;gap:8px!important}
+.seller-question-row{display:grid!important;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 12px!important;border:1px solid #e7e3dc!important;border-radius:10px!important;background:#fff!important}
+.seller-question-row>svg{display:none}
+.seller-question-number{width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:#f3f0eb;color:#6f675e;font-size:10px;font-weight:800}
+.seller-question-text{font-size:13px;line-height:1.4;color:#35312d}
+.seller-question-actions{display:flex;gap:3px}
+.seller-question-actions button{width:30px;height:30px;border:0;background:transparent;border-radius:7px;display:grid;place-items:center;color:#8b847c}
+.seller-question-actions button:hover{background:#f3f0eb;color:#111}
+.seller-question-editor{min-height:56px!important;resize:vertical!important;padding:8px 10px!important;font-size:13px!important;line-height:1.4!important}
+.seller-message-hidden{display:none!important}
+.seller-send-row{justify-content:flex-end!important;margin-top:2px}
+.seller-send-row #sentSeller{min-width:150px}
+
+@media(max-width:650px){
+  .seller-question-row{grid-template-columns:26px minmax(0,1fr);align-items:start}
+  .seller-question-actions{grid-column:2;justify-content:flex-end;margin-top:-2px}
+  .decision-summary-structured li{padding-left:26px}
+}
