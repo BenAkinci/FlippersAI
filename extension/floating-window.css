@@ -1,0 +1,25 @@
+#compactToggle,
+#expandWorkspace{
+  display:none!important;
+}
+.float-control{
+  flex:0 0 auto;
+}
+body.flippers-floating{
+  min-width:380px;
+  background:var(--brand-iceberg,#F7FBFD);
+}
+body.flippers-floating .ext-shell{
+  min-height:100vh;
+}
+body.flippers-floating .ext-top{
+  -webkit-app-region:no-drag;
+}
+body.flippers-floating .ext-main{
+  max-width:none;
+}
+@media(max-width:520px){
+  body.flippers-floating{
+    min-width:0;
+  }
+}
