@@ -1,5 +1,15 @@
 import { CONFIG } from './config.js'
 
+const LAST_MARKETPLACE_TAB = 'flippers_last_marketplace_tab'
+
+function isMarketplaceUrl(url = '') {
+  return /^https:\/\/([^/]+\.)?(facebook\.com|ebay\.com\.au|gumtree\.com\.au|depop\.com)\//i.test(url)
+}
+
+async function rememberMarketplaceTab(tab) {
+  if (tab?.id && isMarketplaceUrl(tab.url || '')) await chrome.storage.local.set({ [LAST_MARKETPLACE_TAB]: tab.id })
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
   try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }) } catch {}
 })
@@ -8,11 +18,28 @@ chrome.runtime.onStartup.addListener(async () => {
   try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }) } catch {}
 })
 
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  try { await rememberMarketplaceTab(await chrome.tabs.get(tabId)) } catch {}
+})
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.url || changeInfo.status === 'complete') rememberMarketplaceTab(tab).catch(() => {})
+})
+
 async function activeTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (!tab?.id) throw new Error('No active marketplace tab found.')
-  if (!/^https?:/i.test(tab.url || '')) throw new Error('Open a marketplace listing in a normal browser tab first.')
-  return tab
+  const [current] = await chrome.tabs.query({ active: true, currentWindow: true })
+  if (current?.id && isMarketplaceUrl(current.url || '')) {
+    await rememberMarketplaceTab(current)
+    return current
+  }
+
+  const stored = await chrome.storage.local.get(LAST_MARKETPLACE_TAB)
+  if (stored[LAST_MARKETPLACE_TAB]) {
+    try {
+      const remembered = await chrome.tabs.get(stored[LAST_MARKETPLACE_TAB])
+      if (remembered?.id && isMarketplaceUrl(remembered.url || '')) return remembered
+    } catch {}
+  }
+  throw new Error('Open a supported marketplace listing first, then scan it with FlippersAI.')
 }
 
 async function sendToContent(tabId, message) {
@@ -26,6 +53,11 @@ async function sendToContent(tabId, message) {
 
 async function captureVisible(tab) {
   try {
+    const current = await chrome.tabs.query({ active:true, windowId:tab.windowId })
+    if (current?.[0]?.id !== tab.id) {
+      await chrome.tabs.update(tab.id, { active:true })
+      await new Promise(r => setTimeout(r, 120))
+    }
     return await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 86 })
   } catch {
     return null
@@ -85,7 +117,7 @@ async function deepScan() {
 async function captureCurrentPage() {
   const tab = await activeTab()
   const screenshot = await captureVisible(tab)
-  if (!screenshot) throw new Error('Chrome could not capture the current page.')
+  if (!screenshot) throw new Error('Chrome could not capture the marketplace tab.')
   return { dataUrl: screenshot, tabId: tab.id, url: tab.url }
 }
 
