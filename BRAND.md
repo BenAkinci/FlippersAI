@@ -2,23 +2,25 @@
 
 ## Brand idea
 
-FlippersAI should feel like premium modern decision software for resellers: fast, trustworthy, intelligent and commercially serious. The product should never look like a noisy Discord server, a gaming UI, or a generic AI dashboard.
+FlippersAI is an arctic intelligence workspace for resellers: crisp, calm, organised and modern, with a distinctive hit of orange energy. It should feel professional and premium without becoming cold, corporate or generic.
 
 ## Logo
 
-Primary mark: the orange penguin-flipper footprint symbol in `brand-logo.svg`.
+Primary mark: the original pair of orange penguin-flipper footprints in `brand-logo.svg`.
 
-Use the mark beside the FlippersAI wordmark in navigation, authentication, the Chrome workspace and product surfaces. Keep the mark simple and do not add gradients, glow effects, mascots, extra text or decorative illustrations around it.
+The feet provide the personality. The surrounding interface stays restrained. Use the mark beside the FlippersAI wordmark in navigation, authentication, the Chrome workspace and product surfaces.
 
 ## Core palette
 
-- Flipper Orange — `#F28C28` — primary brand/action colour.
-- Deep Orange — `#E37818` — hover/pressed emphasis.
-- Charcoal — `#111214` — headings, wordmark, authority and high-contrast structure.
-- Warm White — `#FBF9F6` — primary application background.
-- White — `#FFFFFF` — cards and working surfaces.
-- Warm Line — `#E8E1D8` — borders and dividers.
-- Iceberg Blue — `#EAF4F9` — informational/supportive surfaces only.
+- Penguin Orange — `#F39A0A` — identity, primary actions and active states.
+- Deep Orange — `#E68500` — hover/pressed emphasis.
+- Arctic Charcoal — `#16232B` — headings, wordmark and structure.
+- Deep Slate — `#2B3D47` — supporting text and icons.
+- Iceberg White — `#F7FBFD` — primary application atmosphere.
+- Snow White — `#FFFFFF` — cards and working surfaces.
+- Glacier Blue — `#EAF5FA` — informational and secondary surfaces.
+- Glacier Mist — `#F1F8FB` — hover and subtle surface variation.
+- Ice Line — `#D7E8F0` — borders and dividers.
 
 Functional colours are not brand colours:
 
@@ -27,30 +29,29 @@ Functional colours are not brand colours:
 
 ## Colour rules
 
-Orange means FlippersAI or action. Use it for the logo, primary calls to action, active progress, selected navigation and restrained emphasis.
+Orange is the deliberate accent. Use it for the logo, primary calls to action, selected navigation, active progress and a small number of high-value highlights. Do not flood whole pages with orange.
 
-Black/charcoal carries most typography and structure. Warm white creates a more premium feel than stark grey application backgrounds.
+Iceberg white and glacier blue create the environment. They should feel airy and subtle rather than saturated or playful.
 
-Iceberg blue is deliberately secondary. Use it only for calm informational states, helper notes and intelligence context. It should never compete with orange as the brand colour.
-
-Green is reserved for actual positive commercial outcomes such as profit, successful payout or confirmed success. Do not use green simply because something is clickable.
+Charcoal carries typography and authority. Green is reserved for genuine positive commercial outcomes, not generic clickable UI.
 
 ## Interface style
 
-- Clean negative space rather than dense panels.
-- Thin warm borders rather than heavy shadows.
-- Rounded corners, but restrained — professional rather than bubbly.
-- Strong typography hierarchy with short labels and scannable information.
-- No unnecessary paragraphs where bullets, rows, metrics or grouped fields are clearer.
-- One dominant action per working state.
-- Secondary and destructive actions visually subordinate to the main action.
+- Airy white and very pale blue backgrounds.
+- White working cards with thin cool-blue borders.
+- Very soft blue-grey shadows rather than heavy black shadows.
+- Rounded corners that feel refined, not bubbly.
+- Strong typography hierarchy and compact scannable information.
+- Avoid walls of text when rows, bullets, fields or metrics communicate faster.
+- One dominant orange action per working state.
+- Secondary actions stay white, cool and quiet.
 
 ## Workflow design
 
 The current step is the dominant working surface. Completed steps can be reviewed and corrected without forcing the workflow backwards. Future steps may be previewed, but remain visually muted and locked until reached.
 
-The step browser uses compact left/right arrows in the top-right of the workflow card. This keeps the user's location obvious while preserving the single-current-action philosophy.
+The step browser uses compact left/right arrows in the top-right of the workflow card.
 
 ## Chrome workspace
 
-The extension uses the same visual identity and shared Deal File as the website. Operational buying and selling tasks can be completed in the extension. Account, profile, finance, category and destructive administration stay website-first.
+The extension uses the same iceberg/orange visual identity and shared Deal File as the website. Operational buying and selling tasks can be completed in the extension. Account, profile, finance, category and destructive administration stay website-first.
