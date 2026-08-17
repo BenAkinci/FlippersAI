@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.68.0",
-  "description": "Keep Scout sessions alive across views, save promising leads, deep-analyse individual listings on demand, and rate marketplace results in small high-quality batches.",
+  "version": "0.69.0",
+  "description": "Autopilot Scout rates every found marketplace listing in fast quality-controlled batches, keeps ratings on the marketplace, and only surfaces promising opportunities in FlippersAI.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
