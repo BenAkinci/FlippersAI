@@ -1,0 +1,13 @@
+/* v0.69 Scout Autopilot: the extension is a shortlist, not a dump of every result. */
+.scout-list .scout-candidate:not(.curation-rated):not(.curation-deep),
+.scout-list .scout-candidate.curation-failed,
+.scout-list .scout-candidate[data-v069-shortlist="0"]{display:none!important}
+.scout-list .scout-candidate[data-v069-shortlist="1"]{display:grid}
+.scout-shortlist-empty{min-height:118px;border:1px dashed #d8e8ef;border-radius:14px;background:#fbfdfe;display:flex;align-items:center;justify-content:center;gap:11px;padding:22px;color:#708690}
+.scout-shortlist-empty[hidden]{display:none!important}
+.scout-shortlist-empty strong,.scout-shortlist-empty small{display:block}
+.scout-shortlist-empty strong{font-size:13px;color:#263942}
+.scout-shortlist-empty small{margin-top:4px;font-size:10px;line-height:1.45;max-width:520px}
+.scout-insight.scanning{border-color:#f0cf91!important;background:#fffaf0!important}
+.scout-insight.scanning strong{color:#8d5a00}
+.scout-summary>div:nth-child(4) strong{color:#176a4b}
