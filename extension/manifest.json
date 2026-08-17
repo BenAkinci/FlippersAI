@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.69.0",
-  "description": "Autopilot Scout rates every found marketplace listing in fast quality-controlled batches, keeps ratings on the marketplace, and only surfaces promising opportunities in FlippersAI.",
+  "version": "0.71.0",
+  "description": "Fast verified Scout screens focused rounds, checks promising listings, gates counterfeit risk, and explains resale, profit, ROI and success potential.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
@@ -21,7 +21,7 @@
   "side_panel": {"default_path":"sidepanel.html"},
   "content_scripts": [{
     "matches": ["https://*.facebook.com/*","https://*.ebay.com.au/*","https://*.gumtree.com.au/*","https://*.depop.com/*"],
-    "js": ["content.js","scout-collection-content.js","scout-rating-overlay.js"],
+    "js": ["content-v070.js","scout-collection-content.js","scout-rating-overlay.js"],
     "run_at": "document_idle"
   }]
 }
