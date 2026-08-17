@@ -6,6 +6,17 @@ function isMarketplaceUrl(url = '') {
   return /^https:\/\/([^/]+\.)?(facebook\.com|ebay\.com\.au|gumtree\.com\.au|depop\.com)\//i.test(url)
 }
 
+function marketplacePlatform(url = '') {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (host.includes('facebook.com')) return 'facebook'
+    if (host.includes('ebay.com.au')) return 'ebay'
+    if (host.includes('gumtree.com.au')) return 'gumtree'
+    if (host.includes('depop.com')) return 'depop'
+  } catch {}
+  return 'other'
+}
+
 async function rememberMarketplaceTab(tab) {
   if (tab?.id && isMarketplaceUrl(tab.url || '')) await chrome.storage.local.set({ [LAST_MARKETPLACE_TAB]: tab.id })
 }
@@ -39,7 +50,7 @@ async function activeTab() {
       if (remembered?.id && isMarketplaceUrl(remembered.url || '')) return remembered
     } catch {}
   }
-  throw new Error('Open a supported marketplace listing first, then scan it with FlippersAI.')
+  throw new Error('Open a supported marketplace page first, then scan it with FlippersAI.')
 }
 
 async function sendToContent(tabId, message) {
@@ -47,6 +58,24 @@ async function sendToContent(tabId, message) {
     return await chrome.tabs.sendMessage(tabId, message)
   } catch {
     await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] })
+    return chrome.tabs.sendMessage(tabId, message)
+  }
+}
+
+async function sendCollection(tabId, message) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, message)
+  } catch {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['scout-collection-content.js'] })
+    return chrome.tabs.sendMessage(tabId, message)
+  }
+}
+
+async function sendOverlay(tabId, message) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, message)
+  } catch {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['scout-rating-overlay.js'] })
     return chrome.tabs.sendMessage(tabId, message)
   }
 }
@@ -114,6 +143,28 @@ async function deepScan() {
   }
 }
 
+async function collectionScan(scroll = false, tabId = null) {
+  const tab = tabId ? await chrome.tabs.get(tabId) : await activeTab()
+  if (!tab?.id || !isMarketplaceUrl(tab.url || '')) throw new Error('Return to a supported marketplace page first.')
+  await rememberMarketplaceTab(tab)
+  const type = scroll ? 'FLIPPERS_SCROLL_RESULTS' : 'FLIPPERS_SCAN_COLLECTION'
+  const result = await sendCollection(tab.id, { type })
+  if (!result?.ok) throw new Error(result?.error || 'Could not read marketplace results.')
+  return {
+    ...result.data,
+    tabId: tab.id,
+    pageUrl: tab.url,
+    pageTitle: tab.title,
+    platform: result.data?.platform || marketplacePlatform(tab.url)
+  }
+}
+
+async function routeOverlay(message) {
+  const tab = await activeTab()
+  const result = await sendOverlay(tab.id, message)
+  return { tabId:tab.id, result }
+}
+
 async function captureCurrentPage() {
   const tab = await activeTab()
   const screenshot = await captureVisible(tab)
@@ -168,6 +219,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const run = async () => {
     switch (message?.type) {
       case 'FLIPPERS_SCAN_ACTIVE_TAB': return { ok: true, data: await deepScan() }
+      case 'FLIPPERS_SCAN_COLLECTION_ACTIVE': return { ok:true, data:await collectionScan(false) }
+      case 'FLIPPERS_SCROLL_COLLECTION': return { ok:true, data:await collectionScan(true, message.tabId || null) }
+      case 'FLIPPERS_GET_MARKETPLACE_TAB': {
+        const tab = await activeTab()
+        return { ok:true, data:{ tabId:tab.id, windowId:tab.windowId, url:tab.url, title:tab.title, platform:marketplacePlatform(tab.url) } }
+      }
+      case 'FLIPPERS_ROUTE_RATING_OVERLAY': return { ok:true, data:await routeOverlay({ type:'FLIPPERS_RATING_OVERLAY', enabled:message.enabled !== false, ratings:message.ratings || [] }) }
+      case 'FLIPPERS_ROUTE_RATING_REMOVE': return { ok:true, data:await routeOverlay({ type:'FLIPPERS_RATING_REMOVE', listings:message.listings || [] }) }
       case 'FLIPPERS_CAPTURE_VISIBLE': return { ok: true, data: await captureCurrentPage() }
       case 'FLIPPERS_IMPORT_WEBSITE_SESSION': return { ok: true, data: await websiteSession(Boolean(message.openWhenMissing)) }
       case 'FLIPPERS_OPEN_WORKSPACE': await openWorkspace(message); return { ok: true }
