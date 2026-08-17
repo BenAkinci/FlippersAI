@@ -8,15 +8,8 @@
 .smart-scout-description ul{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
 .smart-scout-description li{font-size:11px;line-height:1.45;color:#334650}
 .smart-scout-description li::marker{color:#f39a0a}
-.smart-filter-row{margin-top:11px}
-.smart-filter-row>div{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-.smart-filter-chip{border:1px solid #d8e8ef;background:#fff;color:#425862;border-radius:999px;padding:6px 9px;font-size:10px;font-weight:700;display:inline-flex;gap:5px;align-items:center}
-.smart-filter-chip span{font-size:8px;color:#8497a0;background:#eef7fa;border-radius:999px;padding:2px 5px}
-.smart-filter-chip.active{border-color:#f39a0a;background:#fff3dd;color:#915a00}
-.smart-filter-chip.active span{background:#f39a0a;color:#fff}
-.smart-filter-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:11px;padding-top:10px;border-top:1px solid #dcebf1}
-.smart-filter-actions>span{font-size:10px;color:#6f8793;margin-right:auto}
-.smart-filter-actions button{border:1px solid #d8e8ef;border-radius:8px;background:#fff;color:#334650;padding:6px 8px;font-size:9px;font-weight:700}
-.smart-filter-actions button:hover{border-color:#f39a0a;color:#8b5700;background:#fff8eb}
+.smart-filter-row{margin-top:11px}.smart-filter-row>div{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.smart-filter-chip{border:1px solid #d8e8ef;background:#fff;color:#425862;border-radius:999px;padding:6px 9px;font-size:10px;font-weight:700;display:inline-flex;gap:5px;align-items:center;cursor:pointer;user-select:none}.smart-filter-chip:hover{border-color:#efc26e;background:#fffaf1}.smart-filter-chip span{font-size:8px;color:#8497a0;background:#eef7fa;border-radius:999px;padding:2px 5px}.smart-filter-chip.active{border-color:#f39a0a;background:#fff3dd;color:#915a00}.smart-filter-chip.active span{background:#f39a0a;color:#fff}
+.smart-filter-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:11px;padding-top:10px;border-top:1px solid #dcebf1}.smart-filter-actions>span{font-size:10px;color:#6f8793;margin-right:auto}.smart-filter-actions button{border:1px solid #d8e8ef;border-radius:8px;background:#fff;color:#334650;padding:6px 8px;font-size:9px;font-weight:700;cursor:pointer}.smart-filter-actions button:hover{border-color:#f39a0a;color:#8b5700;background:#fff8eb}
 .scout-candidate.smart-scout-hidden{display:none!important}
 @media(min-width:760px){.smart-overview-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}

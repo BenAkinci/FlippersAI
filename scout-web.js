@@ -46,8 +46,10 @@ if (scoutId) {
   }
   const rpc = (name, body) => request(`/rest/v1/rpc/${name}`, { method:'POST', body:JSON.stringify(body) })
 
-  function recLabel(v='') { return ({strong_buy:'Strong lead',buy:'Strong lead',negotiate:'Promising',verify_first:'Needs verification',skip:'Skip'})[v] || 'Not analysed' }
+  function recLabel(v='') { return ({strong_buy:'Strong lead',buy:'Strong lead',negotiate:'Promising',verify_first:'Needs verification',skip:'Skip'})[v] || 'Not rated' }
   function recClass(v='') { return ['strong_buy','buy'].includes(v) ? 'good' : ['negotiate','verify_first'].includes(v) ? 'warn' : v === 'skip' ? 'bad' : '' }
+  function hasRating(c) { return ['rated','analysed'].includes(c?.scan_status) || Boolean(c?.recommendation || c?.analysis?.recommendation) }
+  function confidence(c) { const a=c.analysis||{}; return a.overall_confidence ?? a.valuation_confidence ?? a.identification_confidence ?? null }
 
   async function waitWorkflow(opportunityId) {
     for (let i=0;i<15;i++) {
@@ -58,9 +60,7 @@ if (scoutId) {
     throw new Error('Deal File saved, but workflow did not initialise.')
   }
 
-  async function currentUser() {
-    return request('/auth/v1/user', { headers:{Accept:'application/json'} })
-  }
+  async function currentUser() { return request('/auth/v1/user', { headers:{Accept:'application/json'} }) }
 
   async function saveAnalysis(opportunityId, c, userId) {
     const x = c.analysis || {}
@@ -74,7 +74,7 @@ if (scoutId) {
     const user = await currentUser()
     const capture = c.deep_capture || {}
     const opportunity = await insert('opportunities', {
-      user_id:user.id,source_platform:c.raw_capture?.platform||'other',source_url:c.source_url,listing_title:c.title||null,listing_text:capture.listingText||capture.visibleText||c.raw_capture?.raw_text||'',seller_asking_price:c.asking_price??null,listing_location:c.location||null,seller_name:c.seller_name||null,currency:c.currency||'AUD',status:c.recommendation==='skip'?'skipped':'watching',raw_listing:{browser_scan:true,source:'scout_session',scout_session_id:c.session_id,scout_candidate_id:c.id,listing_id:c.listing_id||null,condition:c.condition||null,captured_at:new Date().toISOString(),canonical_url:c.source_url},updated_at:new Date().toISOString()
+      user_id:user.id,source_platform:c.raw_capture?.platform||'other',source_url:c.source_url,listing_title:c.title||null,listing_text:capture.listingText||capture.visibleText||c.raw_capture?.raw_text||'',seller_asking_price:c.asking_price??null,listing_location:c.location||null,seller_name:c.seller_name||null,currency:c.currency||'AUD',status:c.recommendation==='skip'?'skipped':'watching',raw_listing:{browser_scan:true,source:'scout_session',scout_session_id:c.session_id,scout_candidate_id:c.id,listing_id:c.listing_id||null,condition:c.condition||null,scout_scan_depth:c.scan_status==='analysed'?'deep':'preliminary',captured_at:new Date().toISOString(),canonical_url:c.source_url},updated_at:new Date().toISOString()
     }, true)
     let workflow = await waitWorkflow(opportunity.id)
     if (workflow.current_step === 'capture_listing') {
@@ -97,13 +97,18 @@ if (scoutId) {
   }
 
   function render(session,candidates) {
-    const analysed = candidates.filter(c=>c.scan_status==='analysed')
-    const strong = analysed.filter(c=>['strong_buy','buy'].includes(c.recommendation)).length
-    const promising = analysed.filter(c=>['negotiate','verify_first'].includes(c.recommendation)).length
-    const rejected = analysed.filter(c=>c.recommendation==='skip').length
+    const rated = candidates.filter(hasRating)
+    const strong = rated.filter(c=>['strong_buy','buy'].includes(c.recommendation)).length
+    const promising = rated.filter(c=>['negotiate','verify_first'].includes(c.recommendation)).length
+    const rejected = rated.filter(c=>c.recommendation==='skip').length
+    const deep = candidates.filter(c=>c.scan_status==='analysed').length
     const overlay = document.createElement('div')
     overlay.id='scoutWebOverlay'
-    overlay.innerHTML=`<div class="scout-web-shell"><header class="scout-web-head"><div><span>SCOUT SESSION</span><h1>${esc(session.query_text||'Marketplace Scout')}</h1><p>${candidates.length} listings · ${strong} strong · ${promising} promising · ${rejected} rejected</p></div><button id="closeScoutWeb">Back to FlippersAI</button></header><div class="scout-web-grid">${candidates.sort((a,b)=>Number(b.rank_score||-999)-Number(a.rank_score||-999)).map(c=>`<article class="scout-web-card"><div class="scout-web-thumb">${c.thumbnail_url?`<img src="${esc(c.thumbnail_url)}" alt="">`:''}</div><div class="scout-web-main"><div class="scout-web-title"><strong>${esc(c.title||'Untitled listing')}</strong><span class="${recClass(c.recommendation)}">${esc(recLabel(c.recommendation))}</span></div><p>${money(c.asking_price)}${c.location?` · ${esc(c.location)}`:''}</p>${c.scan_status==='analysed'?`<div class="scout-web-metrics"><span>Resale <b>${money(c.analysis?.resale_mid)}</b></span><span>Profit <b>${money(c.analysis?.expected_profit)}</b></span><span>ROI <b>${pct(c.analysis?.expected_roi_percent)}</b></span><span>Score <b>${Math.round(Number(c.analysis?.overall_score||0))}/100</b></span></div>`:''}<div class="scout-web-actions"><button data-start="${c.id}">Start flip</button><a href="${esc(c.source_url)}" target="_blank" rel="noopener">Open listing</a></div></div></article>`).join('')}</div></div>`
+    const cards = [...candidates].sort((a,b)=>Number(b.rank_score??-999)-Number(a.rank_score??-999)).map(c=>{
+      const ratedNow=hasRating(c),conf=confidence(c),depth=c.scan_status==='analysed'?'Deep scan':ratedNow?'Preliminary rating':'Waiting for rating'
+      return `<article class="scout-web-card ${c.scan_status==='analysed'?'deep':''}"><div class="scout-web-thumb">${c.thumbnail_url?`<img src="${esc(c.thumbnail_url)}" alt="">`:''}</div><div class="scout-web-main"><div class="scout-web-title"><strong>${esc(c.title||'Untitled listing')}</strong><span class="${recClass(c.recommendation)}">${esc(recLabel(c.recommendation))}</span></div><p>${money(c.asking_price)}${c.location?` · ${esc(c.location)}`:''}</p><div class="scout-web-depth">${esc(depth)}</div>${ratedNow?`<div class="scout-web-metrics"><span>Score <b>${Math.round(Number(c.analysis?.overall_score??c.score??0))}/100</b></span><span>Est. profit <b>${money(c.analysis?.expected_profit??c.expected_profit)}</b></span><span>Est. resale <b>${money(c.analysis?.resale_mid??c.resale_mid)}</b></span><span>ROI <b>${pct(c.analysis?.expected_roi_percent??c.expected_roi_percent)}</b></span>${conf==null?'':`<span>Confidence <b>${pct(conf)}</b></span>`}</div>`:'<div class="scout-web-pending">This listing is waiting for its first-pass rating in the extension.</div>'}<div class="scout-web-actions">${ratedNow&&c.recommendation!=='skip'?`<button data-start="${c.id}">Start flip</button>`:''}<a href="${esc(c.source_url)}" target="_blank" rel="noopener">Open listing</a></div></div></article>`
+    }).join('')
+    overlay.innerHTML=`<div class="scout-web-shell"><header class="scout-web-head"><div><span>SCOUT SESSION</span><h1>${esc(session.query_text||'Marketplace Scout')}</h1><p>${candidates.length} listings · ${rated.length} rated · ${deep} deep-scanned · ${strong} strong · ${promising} promising · ${rejected} skip</p></div><button id="closeScoutWeb">Back to FlippersAI</button></header><div class="scout-web-grid">${cards}</div></div>`
     document.body.appendChild(overlay)
     document.getElementById('closeScoutWeb').onclick=()=>{const next=new URL(location.href);next.searchParams.delete('scout');location.href=next.toString()}
     overlay.querySelectorAll('[data-start]').forEach(button=>button.onclick=async()=>{button.disabled=true;button.textContent='Creating Deal File…';try{const c=candidates.find(x=>x.id===button.dataset.start);await startFlip(c)}catch(error){button.disabled=false;button.textContent='Start flip';alert(error.message)}})
