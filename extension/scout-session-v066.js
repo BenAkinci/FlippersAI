@@ -25,7 +25,7 @@ function candidateMarkup(c,index){
   const raw=c.deep_capture?.description||c.deep_capture?.listingText||c.raw_capture?.raw_text||''
   const region=c.region_code||c.raw_capture?.region_code||''
   const category=c.category_label||c.raw_capture?.category_label||c.analysis?.category||'Other'
-  return `<article class="scout-candidate" data-candidate="${esc(c.id)}" data-smart-region="${esc(region)}" data-smart-category="${esc(category)}">
+  return `<article class="scout-candidate curation-scout-hidden" data-candidate="${esc(c.id)}" data-smart-region="${esc(region)}" data-smart-category="${esc(category)}">
     <label class="scout-select"><input type="checkbox" data-select-candidate ${c.selected?'checked':''}><span>${index+1}</span></label>
     <div class="scout-thumb">${c.thumbnail_url?`<img src="${esc(c.thumbnail_url)}" alt="">`:`<div class="scout-thumb-placeholder">${index+1}</div>`}</div>
     <div class="scout-candidate-main">
@@ -51,14 +51,14 @@ async function persistScout(){
 function renderScout(){
   if(!scout||!scanViewActive())return
   const main=$('.ext-main');if(!main)return
-  main.innerHTML=`<section class="page-head scout-page-head"><div><span class="eyebrow">MARKETPLACE SCOUT</span><h1>${esc(titleForScout(scout))}</h1><p>Find broadly, rate a small batch at a time, save the leads you like and analyse only the listings worth a closer look.</p></div><button class="button soft small scout-action" id="scoutRescan">Start new scan</button></section>
+  main.innerHTML=`<section class="page-head scout-page-head" data-scout-session="${esc(scout.session.id)}"><div><span class="eyebrow">MARKETPLACE SCOUT</span><h1>${esc(titleForScout(scout))}</h1><p>FlippersAI scans the page automatically, rates every found listing in small high-speed batches and only surfaces the opportunities worth your attention.</p></div><button class="button soft small scout-action" id="scoutRescan">Start new scan</button></section>
     <section class="scout-capture-source"><div><span>SOURCE</span><strong>${esc(label(scout.platform))}</strong></div><div><span>PAGE TYPE</span><strong>Marketplace results</strong></div><div><span>LISTINGS FOUND</span><strong>${scout.candidates.length}</strong></div></section>
-    <section class="scout-summary"><div><span>FOUND</span><strong>${scout.candidates.length}</strong></div><div><span>RATED</span><strong>0</strong></div><div><span>SCANNING</span><strong>0</strong></div><div><span>LEFT</span><strong>${scout.candidates.length}</strong></div><div class="scout-summary-good"><span>STRONG</span><strong>0</strong></div></section>
-    <section class="scout-insight"><strong>Building your shortlist</strong><span>FlippersAI rates at most five listings together, then waits for you before starting the next batch.</span></section>
+    <section class="scout-summary"><div><span>FOUND</span><strong>${scout.candidates.length}</strong></div><div><span>RATED</span><strong>0</strong></div><div><span>SCANNING</span><strong>0</strong></div><div class="scout-summary-good"><span>PROMISING</span><strong>0</strong></div><div><span>HIDDEN</span><strong>0</strong></div></section>
+    <section class="scout-insight scanning"><strong>Starting Scout…</strong><span>Finding the first opportunities and preparing the rating engine.</span></section>
     <div class="scout-toolbar"><label class="scout-select-all"><input type="checkbox" id="scoutSelectAll"><span>Select rated</span></label><span class="top-spacer"></span><button class="button secondary small scout-action" id="scanMoreResults">Scan next results ↓</button></div>
     <div class="scout-list">${scout.candidates.map(candidateMarkup).join('')}</div>
     <div class="scout-sticky-actions"><button class="button primary scout-action" id="deepScanSelected" disabled>Deep scan 0 selected</button><button class="button secondary scout-action" id="openScoutWebsite">Open Scout on website</button></div>
-    <div class="scout-footnote">Leaving Scan does not clear this Scout. It stays here until you choose Start new scan.</div>`
+    <div class="scout-footnote">Low-value listings stay rated on the marketplace page but are hidden here. Leaving Scan does not clear this Scout; it stays until you choose Start new scan.</div>`
   bindUi()
   document.dispatchEvent(new CustomEvent('flippers:scout-rendered',{detail:{sessionId:scout.session.id}}))
 }
@@ -140,9 +140,23 @@ async function restoreScout(){
   }finally{restoring=false}
 }
 
-function scheduleRestore(){clearTimeout(renderTimer);renderTimer=setTimeout(()=>{if(scanViewActive()){if(scout)renderScout();else restoreScout().catch(()=>{})}},70)}
+function scheduleRestore(){
+  clearTimeout(renderTimer)
+  renderTimer=setTimeout(()=>{
+    if(!scanViewActive())return
+    const rendered=$('.scout-page-head[data-scout-session]')
+    if(scout){
+      if(rendered?.dataset.scoutSession===String(scout.session?.id||''))return
+      renderScout()
+    }else if(!rendered)restoreScout().catch(()=>{})
+  },70)
+}
 
 document.addEventListener('click',event=>{const button=event.target.closest?.('#scanCurrent');if(!button)return;event.preventDefault();event.stopImmediatePropagation();handleScan(button)},true)
 document.addEventListener('click',event=>{const nav=event.target.closest?.('.ext-nav [data-view="scan"]');if(nav)setTimeout(scheduleRestore,0)},true)
-new MutationObserver(()=>scheduleRestore()).observe(document.getElementById('app'),{childList:true,subtree:true})
+new MutationObserver(mutations=>{
+  if(!scanViewActive())return
+  const meaningful=mutations.some(m=>!m.target.closest?.('.scout-page-head,.scout-list,.scout-summary,.scout-insight,.scout-loading-indicator,.scout-quality-mode,.scout-curation-controls,.scout-sticky-actions'))
+  if(meaningful&&!$('.scout-page-head[data-scout-session]'))scheduleRestore()
+}).observe(document.getElementById('app'),{childList:true,subtree:true})
 restoreScout().catch(()=>{})
