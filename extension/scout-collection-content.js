@@ -1,6 +1,6 @@
 (() => {
-  if (window.__flippersAiCollectionScannerLoaded) return
-  window.__flippersAiCollectionScannerLoaded = true
+  if (window.__flippersAiCollectionScannerLoadedV066) return
+  window.__flippersAiCollectionScannerLoadedV066 = true
 
   const clean=v=>String(v||'').replace(/\s+/g,' ').trim()
   const text=el=>clean(el?.innerText||el?.textContent||'')
@@ -70,8 +70,8 @@
   }
 
   chrome.runtime.onMessage.addListener((message,_sender,sendResponse)=>{
-    if(message?.type==='FLIPPERS_SCAN_COLLECTION'){try{sendResponse({ok:true,data:collectionScan()})}catch(error){sendResponse({ok:false,error:error.message||String(error)})}return}
-    if(message?.type==='FLIPPERS_SCROLL_RESULTS'){
+    if(message?.type==='FLIPPERS_SCAN_COLLECTION_V066'){try{sendResponse({ok:true,data:collectionScan()})}catch(error){sendResponse({ok:false,error:error.message||String(error)})}return}
+    if(message?.type==='FLIPPERS_SCROLL_RESULTS_V066'){
       window.scrollBy({top:Math.max(window.innerHeight*.85,650),behavior:'smooth'})
       setTimeout(()=>{try{sendResponse({ok:true,data:collectionScan()})}catch(error){sendResponse({ok:false,error:error.message||String(error)})}},750)
       return true
