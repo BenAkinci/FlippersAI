@@ -1,6 +1,8 @@
 import { CONFIG } from './config.js'
 
 const LAST_MARKETPLACE_TAB = 'flippers_last_marketplace_tab'
+const RATING_HISTORY = 'flippers_rating_history_v067'
+const RATING_ENABLED = 'flippers_marketplace_badges_enabled_v067'
 
 function isMarketplaceUrl(url = '') {
   return /^https:\/\/([^/]+\.)?(facebook\.com|ebay\.com\.au|gumtree\.com\.au|depop\.com)\//i.test(url)
@@ -17,22 +19,91 @@ function marketplacePlatform(url = '') {
   return 'other'
 }
 
+function ratingKey(rating = {}) {
+  const platform = marketplacePlatform(rating.url || '')
+  if (rating.listingId) return `${platform}:id:${String(rating.listingId)}`
+  try {
+    const u = new URL(rating.url || '')
+    return `${platform}:url:${u.origin}${u.pathname.replace(/\/$/, '')}`
+  } catch {}
+  if (rating.id) return `candidate:${String(rating.id)}`
+  return ''
+}
+
+function sameStoredRating(saved = {}, target = {}) {
+  if (target.id && saved.id && String(target.id) === String(saved.id)) return true
+  if (target.listingId && saved.listingId && String(target.listingId) === String(saved.listingId)) return true
+  try {
+    const a = new URL(target.url || ''), b = new URL(saved.url || '')
+    return a.origin === b.origin && a.pathname.replace(/\/$/, '') === b.pathname.replace(/\/$/, '')
+  } catch {}
+  return false
+}
+
+async function ratingState() {
+  const stored = await chrome.storage.local.get([RATING_HISTORY, RATING_ENABLED])
+  return {
+    history: stored[RATING_HISTORY] && typeof stored[RATING_HISTORY] === 'object' ? stored[RATING_HISTORY] : {},
+    enabled: stored[RATING_ENABLED] !== false
+  }
+}
+
+async function mergeRatingHistory(ratings = []) {
+  const state = await ratingState()
+  const history = { ...state.history }
+  const now = new Date().toISOString()
+  for (const incoming of ratings) {
+    const key = ratingKey(incoming)
+    if (!key) continue
+    const score = Math.max(0, Math.min(100, Math.round(Number(incoming.score || 0))))
+    const recommendation = incoming.recommendation || ''
+    history[key] = {
+      ...(history[key] || {}),
+      ...incoming,
+      score,
+      recommendation,
+      elite: score >= 95 && ['strong_buy', 'buy'].includes(recommendation),
+      scannedAt: incoming.scannedAt || now,
+      updatedAt: now
+    }
+  }
+  await chrome.storage.local.set({ [RATING_HISTORY]: history })
+  return history
+}
+
+async function removeRatingHistory(listings = []) {
+  const state = await ratingState()
+  const history = { ...state.history }
+  for (const [key, saved] of Object.entries(history)) {
+    if (listings.some(target => sameStoredRating(saved, target))) delete history[key]
+  }
+  await chrome.storage.local.set({ [RATING_HISTORY]: history })
+  return history
+}
+
 async function rememberMarketplaceTab(tab) {
   if (tab?.id && isMarketplaceUrl(tab.url || '')) await chrome.storage.local.set({ [LAST_MARKETPLACE_TAB]: tab.id })
 }
 
-chrome.runtime.onInstalled.addListener(async () => { try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }) } catch {} })
-chrome.runtime.onStartup.addListener(async () => { try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }) } catch {} })
-chrome.tabs.onActivated.addListener(async ({ tabId }) => { try { await rememberMarketplaceTab(await chrome.tabs.get(tabId)) } catch {} })
-chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => { if (changeInfo.url || changeInfo.status === 'complete') rememberMarketplaceTab(tab).catch(() => {}) })
-
-async function activeTab() {
+async function marketplaceTabOrNull() {
   const [current] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (current?.id && isMarketplaceUrl(current.url || '')) { await rememberMarketplaceTab(current); return current }
+  if (current?.id && isMarketplaceUrl(current.url || '')) {
+    await rememberMarketplaceTab(current)
+    return current
+  }
   const stored = await chrome.storage.local.get(LAST_MARKETPLACE_TAB)
   if (stored[LAST_MARKETPLACE_TAB]) {
-    try { const remembered = await chrome.tabs.get(stored[LAST_MARKETPLACE_TAB]); if (remembered?.id && isMarketplaceUrl(remembered.url || '')) return remembered } catch {}
+    try {
+      const remembered = await chrome.tabs.get(stored[LAST_MARKETPLACE_TAB])
+      if (remembered?.id && isMarketplaceUrl(remembered.url || '')) return remembered
+    } catch {}
   }
+  return null
+}
+
+async function activeTab() {
+  const tab = await marketplaceTabOrNull()
+  if (tab) return tab
   throw new Error('Open a supported marketplace page first, then scan it with FlippersAI.')
 }
 
@@ -50,6 +121,47 @@ async function sendOverlay(tabId, message) {
   await chrome.scripting.executeScript({ target:{ tabId }, files:['scout-rating-overlay.js'] }).catch(() => {})
   return chrome.tabs.sendMessage(tabId, message)
 }
+
+async function restoreMarketplaceTab(tabId) {
+  try {
+    const tab = await chrome.tabs.get(tabId)
+    if (!tab?.id || !isMarketplaceUrl(tab.url || '')) return
+    const state = await ratingState()
+    await sendOverlay(tab.id, {
+      type:'FLIPPERS_RATING_OVERLAY_V067',
+      enabled:state.enabled,
+      ratings:Object.values(state.history)
+    })
+  } catch {}
+}
+
+async function restoreAllMarketplaceTabs() {
+  const patterns = ['https://*.facebook.com/*','https://*.ebay.com.au/*','https://*.gumtree.com.au/*','https://*.depop.com/*']
+  const tabs = await chrome.tabs.query({ url:patterns }).catch(() => [])
+  await Promise.allSettled((tabs || []).filter(t => t.id).map(t => restoreMarketplaceTab(t.id)))
+}
+
+chrome.runtime.onInstalled.addListener(async () => {
+  try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }) } catch {}
+  const state = await chrome.storage.local.get(RATING_ENABLED)
+  if (state[RATING_ENABLED] === undefined) await chrome.storage.local.set({ [RATING_ENABLED]:true })
+  restoreAllMarketplaceTabs().catch(() => {})
+})
+chrome.runtime.onStartup.addListener(async () => {
+  try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }) } catch {}
+  restoreAllMarketplaceTabs().catch(() => {})
+})
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  try {
+    const tab = await chrome.tabs.get(tabId)
+    await rememberMarketplaceTab(tab)
+    if (isMarketplaceUrl(tab?.url || '')) setTimeout(() => restoreMarketplaceTab(tabId), 120)
+  } catch {}
+})
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url || changeInfo.status === 'complete') rememberMarketplaceTab(tab).catch(() => {})
+  if (changeInfo.status === 'complete' && isMarketplaceUrl(tab?.url || '')) setTimeout(() => restoreMarketplaceTab(tabId), 160)
+})
 
 async function captureVisible(tab) {
   try {
@@ -78,7 +190,23 @@ async function collectionScan(scroll=false, tabId=null) {
   return{...result.data,tabId:tab.id,pageUrl:tab.url,pageTitle:tab.title,platform:result.data?.platform||marketplacePlatform(tab.url)}
 }
 
-async function routeOverlay(message) { const tab=await activeTab();const result=await sendOverlay(tab.id,message);return{tabId:tab.id,result} }
+async function routeOverlay(message) {
+  const enabled = message.enabled !== false
+  await chrome.storage.local.set({ [RATING_ENABLED]:enabled })
+  const history = message.ratings?.length ? await mergeRatingHistory(message.ratings) : (await ratingState()).history
+  const tab = await marketplaceTabOrNull()
+  if (tab?.id) await sendOverlay(tab.id, { type:'FLIPPERS_RATING_OVERLAY_V067', enabled, ratings:Object.values(history) }).catch(() => {})
+  return { tabId:tab?.id || null, saved:Object.keys(history).length, enabled }
+}
+
+async function routeRatingRemove(listings = []) {
+  const history = await removeRatingHistory(listings)
+  const state = await ratingState()
+  const tab = await marketplaceTabOrNull()
+  if (tab?.id) await sendOverlay(tab.id, { type:'FLIPPERS_RATING_OVERLAY_V067', enabled:state.enabled, ratings:Object.values(history) }).catch(() => {})
+  return { tabId:tab?.id || null, saved:Object.keys(history).length }
+}
+
 async function captureCurrentPage() { const tab=await activeTab(),screenshot=await captureVisible(tab);if(!screenshot)throw new Error('Chrome could not capture the marketplace tab.');return{dataUrl:screenshot,tabId:tab.id,url:tab.url} }
 
 async function websiteSession(openWhenMissing=false) {
@@ -98,8 +226,9 @@ chrome.runtime.onMessage.addListener((message,_sender,sendResponse)=>{
       case'FLIPPERS_SCAN_COLLECTION_ACTIVE':return{ok:true,data:await collectionScan(false)}
       case'FLIPPERS_SCROLL_COLLECTION':return{ok:true,data:await collectionScan(true,message.tabId||null)}
       case'FLIPPERS_GET_MARKETPLACE_TAB':{const tab=await activeTab();return{ok:true,data:{tabId:tab.id,windowId:tab.windowId,url:tab.url,title:tab.title,platform:marketplacePlatform(tab.url)}}}
-      case'FLIPPERS_ROUTE_RATING_OVERLAY':return{ok:true,data:await routeOverlay({type:'FLIPPERS_RATING_OVERLAY_V066',enabled:message.enabled!==false,ratings:message.ratings||[]})}
-      case'FLIPPERS_ROUTE_RATING_REMOVE':return{ok:true,data:await routeOverlay({type:'FLIPPERS_RATING_REMOVE_V066',listings:message.listings||[]})}
+      case'FLIPPERS_ROUTE_RATING_OVERLAY':return{ok:true,data:await routeOverlay({enabled:message.enabled!==false,ratings:message.ratings||[]})}
+      case'FLIPPERS_ROUTE_RATING_REMOVE':return{ok:true,data:await routeRatingRemove(message.listings||[])}
+      case'FLIPPERS_GET_RATING_STATE':{const state=await ratingState();return{ok:true,data:{enabled:state.enabled,ratings:Object.values(state.history)}}}
       case'FLIPPERS_CAPTURE_VISIBLE':return{ok:true,data:await captureCurrentPage()}
       case'FLIPPERS_IMPORT_WEBSITE_SESSION':return{ok:true,data:await websiteSession(Boolean(message.openWhenMissing))}
       case'FLIPPERS_OPEN_WORKSPACE':await openWorkspace(message);return{ok:true}
