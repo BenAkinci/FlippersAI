@@ -9,6 +9,7 @@
 
   let regionFilter = 'ALL'
   let categoryFilter = 'ALL'
+  let renderTimer = null
 
   function parsePrice(value = '') {
     const match = String(value).replace(/,/g, '').match(/(?:A\$|AU\$|\$)\s*([0-9]+(?:\.\d{1,2})?)/i)
@@ -49,8 +50,8 @@
       const title = $('.scout-candidate-title-row strong', card)?.textContent?.trim() || 'Untitled listing'
       const meta = $('.scout-meta', card)?.textContent?.trim() || ''
       const price = parsePrice(meta)
-      const region = inferRegion(meta)
-      const category = inferCategory(title)
+      const region = card.dataset.smartRegion || inferRegion(meta)
+      const category = card.dataset.smartCategory || inferCategory(title)
       card.dataset.smartRegion = region
       card.dataset.smartCategory = category
       return { card, title, meta, price, region, category }
@@ -63,12 +64,14 @@
     return [...map.entries()].sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   }
 
+  function matches(row) {
+    const showRegion = regionFilter === 'ALL' || row.region === regionFilter
+    const showCategory = categoryFilter === 'ALL' || row.category === categoryFilter
+    return showRegion && showCategory
+  }
+
   function filterRows(rows) {
-    rows.forEach(row => {
-      const showRegion = regionFilter === 'ALL' || row.region === regionFilter
-      const showCategory = categoryFilter === 'ALL' || row.category === categoryFilter
-      row.card.classList.toggle('smart-scout-hidden', !(showRegion && showCategory))
-    })
+    rows.forEach(row => row.card.classList.toggle('smart-scout-hidden', !matches(row)))
   }
 
   function chip(label, value, active, type, count) {
@@ -91,17 +94,17 @@
     const regions = counts(rows.filter(r => r.region !== 'Unknown'), 'region')
     const categories = counts(rows, 'category')
     const knownRegions = regions.map(([v]) => v)
-    const visibleCount = rows.filter(r => !r.card.classList.contains('smart-scout-hidden')).length
+    const visibleRows = rows.filter(matches)
     const query = $('h1', head)?.textContent?.trim() || 'marketplace results'
 
     const bullets = []
-    bullets.push(`${rows.length} listing${rows.length === 1 ? '' : 's'} detected for ${query}.`)
-    if (average != null) bullets.push(`Average visible asking price is ${money(average)}${min !== max ? `, ranging from ${money(min)} to ${money(max)}` : ''}.`)
-    else bullets.push('No reliable asking prices are visible yet; individual prices will be captured during deeper scanning.')
-    if (knownRegions.length) bullets.push(`Listings are spread across ${knownRegions.join(', ')}. Use the area filter if you only want listings from a particular state or territory.`)
-    else bullets.push('No broad Australian state or territory could be read reliably from the visible cards yet.')
-    if (categories.length > 1) bullets.push(`Mixed products detected across ${categories.map(([name]) => name).join(', ')}. FlippersAI is keeping them separated rather than treating them as one product type.`)
-    else bullets.push(`The visible results appear to be in the ${categories[0]?.[0] || 'Other'} category.`)
+    bullets.push(`${rows.length} listing${rows.length === 1 ? '' : 's'} are in the current Scout pool for ${query}.`)
+    if (average != null) bullets.push(`Average asking price is ${money(average)}${min !== max ? `, ranging from ${money(min)} to ${money(max)}` : ''}.`)
+    else bullets.push('No reliable asking prices are visible yet; FlippersAI will use the full listing page while rating each candidate.')
+    if (knownRegions.length) bullets.push(`Listings are spread across ${knownRegions.join(', ')}. Use the area filter to focus on the states or territories you want.`)
+    else bullets.push('No broad Australian state or territory could be read reliably from this batch yet.')
+    if (categories.length > 1) bullets.push(`Mixed products detected across ${categories.map(([name]) => name).join(', ')}. They remain separated so unrelated products are never blended into one analysis.`)
+    else bullets.push(`The current batch appears to be in the ${categories[0]?.[0] || 'Other'} category.`)
 
     let overview = $('#smartScoutOverview')
     if (!overview) {
@@ -124,28 +127,49 @@
       </div>
       ${regions.length ? `<div class="smart-filter-row"><span>AREA</span><div>${chip('All','ALL',regionFilter==='ALL','region',rows.length)}${regions.map(([name,count]) => chip(name,name,regionFilter===name,'region',count)).join('')}</div></div>` : ''}
       ${categories.length > 1 ? `<div class="smart-filter-row"><span>CATEGORY</span><div>${chip('All','ALL',categoryFilter==='ALL','category',rows.length)}${categories.map(([name,count]) => chip(name,name,categoryFilter===name,'category',count)).join('')}</div></div>` : ''}
-      <div class="smart-filter-actions"><span>${visibleCount} listing${visibleCount === 1 ? '' : 's'} shown</span><button type="button" id="smartSelectVisible">Select shown only</button><button type="button" id="smartClearFilters">Clear filters</button></div>`
-
-    $$('[data-smart-region]', overview).forEach(button => button.onclick = () => { regionFilter = button.dataset.smartRegion; renderOverview() })
-    $$('[data-smart-category]', overview).forEach(button => button.onclick = () => { categoryFilter = button.dataset.smartCategory; renderOverview() })
-    $('#smartClearFilters', overview)?.addEventListener('click', () => { regionFilter = 'ALL'; categoryFilter = 'ALL'; renderOverview() })
-    $('#smartSelectVisible', overview)?.addEventListener('click', () => {
-      rows.forEach(row => {
-        const input = $('[data-select-candidate]', row.card)
-        if (!input) return
-        const shouldSelect = !row.card.classList.contains('smart-scout-hidden')
-        if (input.checked !== shouldSelect) {
-          input.checked = shouldSelect
-          input.dispatchEvent(new Event('change', { bubbles:true }))
-        }
-      })
-    })
+      <div class="smart-filter-actions"><span>${visibleRows.length} listing${visibleRows.length === 1 ? '' : 's'} shown</span><button type="button" id="smartSelectVisible">Select shown only</button><button type="button" id="smartClearFilters">Clear filters</button></div>`
   }
 
-  let timer
-  new MutationObserver(() => {
-    clearTimeout(timer)
-    timer = setTimeout(renderOverview, 60)
+  document.addEventListener('click', event => {
+    const overview = event.target.closest?.('#smartScoutOverview')
+    if (!overview) return
+
+    const region = event.target.closest?.('[data-smart-region]')
+    if (region) {
+      event.preventDefault()
+      regionFilter = region.dataset.smartRegion || 'ALL'
+      renderOverview()
+      return
+    }
+
+    const category = event.target.closest?.('[data-smart-category]')
+    if (category) {
+      event.preventDefault()
+      categoryFilter = category.dataset.smartCategory || 'ALL'
+      renderOverview()
+      return
+    }
+
+    if (event.target.closest?.('#smartClearFilters')) {
+      event.preventDefault()
+      regionFilter = 'ALL'
+      categoryFilter = 'ALL'
+      renderOverview()
+      return
+    }
+
+    if (event.target.closest?.('#smartSelectVisible')) {
+      event.preventDefault()
+      const ids = inspectCards().filter(matches).map(row => row.card.dataset.candidate).filter(Boolean)
+      document.dispatchEvent(new CustomEvent('flippers:bulk-select', { detail:{ ids } }))
+    }
+  }, true)
+
+  new MutationObserver(mutations => {
+    const meaningful = mutations.some(mutation => !mutation.target.closest?.('#smartScoutOverview'))
+    if (!meaningful) return
+    clearTimeout(renderTimer)
+    renderTimer = setTimeout(renderOverview, 80)
   }).observe(document.getElementById('app'), { childList:true, subtree:true })
 
   renderOverview()
