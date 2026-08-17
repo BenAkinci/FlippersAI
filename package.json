@@ -1,10 +1,10 @@
 {
   "name": "flippersai",
   "private": true,
-  "version": "0.69.0",
+  "version": "0.70.0",
   "scripts": {
     "build": "rm -rf public && mkdir -p public && cp index.html app.js styles.css community.js community.css platform.js platform.css ux-fixes.js ux-fixes.css brand.css brand-logo.svg brand-app-icon.svg brand-icon-180.png brand-icon-192.png site.webmanifest workflow-browser.js workflow-browser.css scout-web.js scout-web.css scout-smart-web.js scout-smart-web.css home-start.js home-start.css public/",
-    "check:extension": "node --check extension/service-worker.js && node --check extension/content.js && node --check extension/scout-collection-content.js && node --check extension/scout-rating-overlay.js && node --check extension/api.js && node --check extension/config.js && node --check extension/app.js && node --check extension/floating-window.js && node --check extension/scout-session-v066.js && node --check extension/scout-smart-overview-v066.js && node --check extension/scout-curation.js && node --check extension/scout-card-details.js && node --check extension/scout-page-overlay-sync.js && node --check extension/scout-loading.js && node --check extension/scout-autopilot-v069.js && node --check extension/scout-workspace-v068.js && node --check extension/single-source-polish.js && node --check extension/single-scan-polish.js",
+    "check:extension": "node --check extension/service-worker.js && node --check extension/content-v070.js && node --check extension/scout-collection-content.js && node --check extension/scout-rating-overlay.js && node --check extension/api.js && node --check extension/config.js && node --check extension/app.js && node --check extension/floating-window.js && node --check extension/scout-session-v070.js && node --check extension/scout-engine-v070.js && node --check extension/scout-smart-overview-v066.js && node --check extension/scout-card-details.js && node --check extension/scout-page-overlay-sync.js && node --check extension/scout-loading.js && node --check extension/scout-workspace-v068.js && node --check extension/single-source-polish.js && node --check extension/single-scan-polish.js",
     "package:extension": "rm -f flippersai-extension.zip && cd extension && zip -r ../flippersai-extension.zip ."
   }
 }
