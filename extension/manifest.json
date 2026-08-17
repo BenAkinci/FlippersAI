@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.64.0",
-  "description": "Scan marketplace results in small parallel batches, compare ratings immediately, then deep-scan only the listings worth pursuing.",
+  "version": "0.65.0",
+  "description": "Scout marketplace pages in fast no-tab rating batches, annotate the best listings on-page, curate and sort candidates, then deep-scan only what is worth pursuing.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
@@ -21,7 +21,7 @@
   "side_panel": {"default_path":"sidepanel.html"},
   "content_scripts": [{
     "matches": ["https://*.facebook.com/*","https://*.ebay.com.au/*","https://*.gumtree.com.au/*","https://*.depop.com/*"],
-    "js": ["content.js","scout-collection-content.js"],
+    "js": ["content.js","scout-collection-content.js","scout-rating-overlay.js"],
     "run_at": "document_idle"
   }]
 }
