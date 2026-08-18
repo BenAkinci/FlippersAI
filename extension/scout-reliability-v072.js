@@ -34,6 +34,14 @@
     const actions = $('.v072-run-actions', bar)
     if (!actions) return
 
+    let engineControlHost = $('.v071-scan-controls', head)
+    if (!engineControlHost) {
+      engineControlHost = document.createElement('div')
+      engineControlHost.className = 'v071-scan-controls v072-engine-control-marker'
+      engineControlHost.hidden = true
+      head.appendChild(engineControlHost)
+    }
+
     let pause = $('#v071Pause')
     if (!pause) pause = makeButton('v071Pause', 'Stop scan', 'button secondary small')
     pause.textContent = pause.textContent?.trim() || 'Stop scan'
@@ -131,7 +139,7 @@
   }, true)
 
   new MutationObserver(mutations => {
-    if (mutations.every(m => m.target.closest?.('#v072RunBar,#v072ShortlistEmpty'))) return
+    if (mutations.every(m => m.target.closest?.('#v072RunBar,#v072ShortlistEmpty,.v072-engine-control-marker'))) return
     schedule()
   }).observe(document.getElementById('app'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] })
 
