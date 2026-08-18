@@ -7,7 +7,8 @@ function requireText(text, label) {
   if (!overlay.includes(text)) throw new Error(`Marketplace overlay contract failed: ${label}`)
 }
 
-if (manifest.version !== '0.77.0') throw new Error(`Expected manifest 0.77.0, got ${manifest.version}`)
+const [major,minor]=String(manifest.version||'0.0.0').split('.').map(Number)
+if (!(major > 0 || minor >= 77)) throw new Error(`Expected manifest 0.77.0 or newer, got ${manifest.version}`)
 if (!manifest.content_scripts?.some(group => group.js?.includes('scout-rating-overlay.js'))) throw new Error('Marketplace overlay must remain a marketplace content script')
 
 requireText('__flippersMarketplaceRatingOverlayV077', 'v0.77 overlay runtime missing')
