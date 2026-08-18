@@ -6,7 +6,8 @@ const index=read('index.html')
 const pkg=JSON.parse(read('package.json'))
 const expect=(value,message)=>{if(!value)throw new Error(message)}
 
-expect(pkg.version==='0.78.0','package must be v0.78.0')
+const [major,minor]=String(pkg.version||'0.0.0').split('.').map(Number)
+expect(major>0||minor>=78,'package must be v0.78.0 or newer')
 expect(index.includes('analyse-direct-web-v078.js?v=0.78.0'),'direct Analyse script must load on website')
 expect(index.includes('analyse-direct-web-v078.css?v=0.78.0'),'direct Analyse styles must load on website')
 expect(js.includes("form.id!=='newDeal'"),'direct Analyse must intercept the Analyse form')

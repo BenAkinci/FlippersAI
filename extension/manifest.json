@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.77.0",
-  "description": "Scout rates five listings at a time and writes persistent FlippersAI score badges directly onto listing covers on Facebook Marketplace, eBay, Depop and Gumtree.",
+  "version": "0.79.0",
+  "description": "AI-powered reselling workspace: Scout rates five listings at a time, writes persistent scores onto marketplace covers and surfaces authenticity risk before headline profit.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
@@ -21,7 +21,7 @@
   "side_panel": {"default_path":"sidepanel.html"},
   "content_scripts": [{
     "matches": ["https://*.facebook.com/*","https://*.ebay.com.au/*","https://*.gumtree.com.au/*","https://*.depop.com/*"],
-    "js": ["content-v070.js","scout-collection-content.js","scout-rating-overlay.js"],
+    "js": ["content-v070.js","scout-collection-content.js","scout-rating-overlay.js","marketplace-trust-overlay-v079.js"],
     "run_at": "document_idle"
   }]
 }
