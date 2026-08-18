@@ -1,0 +1,18 @@
+import fs from 'node:fs'
+const read=p=>fs.readFileSync(new URL(`../${p}`,import.meta.url),'utf8')
+const js=read('product-readiness-v079.js')
+const index=read('index.html')
+const pkg=JSON.parse(read('package.json'))
+const expect=(v,m)=>{if(!v)throw new Error(m)}
+expect(pkg.version==='0.79.0','package must be v0.79.0')
+expect(index.includes('product-readiness-v079.js?v=0.79.0'),'v0.79 readiness script must load')
+expect(index.includes('product-readiness-v079.css?v=0.79.0'),'v0.79 readiness styles must load')
+expect(index.includes('AI Reselling Software Platform'),'website must classify FlippersAI as a software platform')
+expect(js.includes("/functions/v1/analyse-listing-v2"),'analysis backend errors must be intercepted')
+expect(js.includes('No credible market evidence = no confident resale/profit figure'),'trust rule missing')
+expect(js.includes('Why this item can — or cannot — reach the target resale'),'resale path explanation missing')
+expect(js.includes('resale_evidence_count'),'sold comp count must be surfaced')
+expect(js.includes('target_resale_requirements'),'value-add requirements must be surfaced')
+expect(js.includes('Profit calculator'),'profit calculator missing')
+expect(js.includes('Retry analysis'),'analysis retry action missing')
+console.log('v0.79 business readiness contract passed')
