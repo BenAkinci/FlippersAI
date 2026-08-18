@@ -1,0 +1,17 @@
+import fs from 'node:fs'
+const read=name=>fs.readFileSync(new URL(`./${name}`,import.meta.url),'utf8')
+const must=(ok,msg)=>{if(!ok)throw new Error(`Scout v0.73 contract failed: ${msg}`)}
+const side=read('sidepanel.html'),workspace=read('workspace.html'),orchestrator=read('scout-orchestrator-v073.js'),css=read('scout-v073.css'),engine=read('scout-engine-v071.js'),manifest=JSON.parse(read('manifest.json'))
+must(manifest.version==='0.73.0','manifest version')
+must(side.includes('scout-orchestrator-v073.js')&&side.includes('scout-v073.css'),'side panel v0.73 orchestrator')
+must(workspace.includes('scout-orchestrator-v073.js')&&workspace.includes('scout-v073.css'),'workspace v0.73 orchestrator')
+must(!side.includes('scout-reliability-v072.js')&&!side.includes('scout-loading-v070.js'),'old conflicting Scout layers removed')
+must(orchestrator.includes('id="v073Pause"')&&orchestrator.includes('id="v073Restart"')&&orchestrator.includes('id="v073New"'),'working control bar')
+must(orchestrator.includes("loader.id='v073Loading'"),'visible loading indicator')
+must(orchestrator.includes('PARALLEL_BATCHES=2')&&orchestrator.includes('MAX_BATCH=10'),'fast parallel batching')
+must(orchestrator.includes('thumbnail:null'),'quick screen skips blocking thumbnail downloads')
+must(orchestrator.includes('Promise.all(wave.map'),'parallel screening wave')
+must(orchestrator.includes('async function stopScan')&&orchestrator.includes('async function restartRound')&&orchestrator.includes('async function startNewScan'),'functional scan actions')
+must(css.includes('.scout-candidate:not(.v071-shortlist-visible){display:none!important}'),'pending/poor cards hidden')
+must(engine.includes('finalWorthwhile'),'existing verified shortlist gate preserved')
+console.log('Scout v0.73 contract OK')

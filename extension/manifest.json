@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.72.0",
-  "description": "Focused background Scout keeps pending and poor listings out of the shortlist, surfaces only verified worthwhile leads, and preserves marketplace ratings.",
+  "version": "0.73.0",
+  "description": "Fast background Scout screens focused batches in parallel, shows live progress, keeps poor and pending listings out of the shortlist, and provides working stop, restart and new-scan controls.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
