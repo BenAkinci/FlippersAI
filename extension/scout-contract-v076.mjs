@@ -10,7 +10,8 @@ function expect(value, message) {
   if (!value) throw new Error(message)
 }
 
-expect(manifest.version === '0.76.0', 'manifest must be v0.76.0')
+const [major, minor] = String(manifest.version || '0.0.0').split('.').map(Number)
+expect(major > 0 || minor >= 76, 'manifest must be v0.76.0 or newer')
 expect(orchestrator.includes('const MAX_BATCH=5'), 'Scout must use exactly five listings per quick batch')
 expect(!orchestrator.includes('PARALLEL_BATCHES'), 'Scout must not run multiple quick batches in parallel')
 expect(orchestrator.includes("id=\"v076Stop\""), 'Stop control missing')

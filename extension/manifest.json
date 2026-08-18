@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.76.0",
-  "description": "Scout screens exactly five listings at a time, keeps running while you switch browser tabs, and separates Stop from Pause/Resume while preserving progressive results.",
+  "version": "0.77.0",
+  "description": "Scout rates five listings at a time and writes persistent FlippersAI score badges directly onto listing covers on Facebook Marketplace, eBay, Depop and Gumtree.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
