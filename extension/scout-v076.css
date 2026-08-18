@@ -1,0 +1,22 @@
+/* v0.76 Scout: five-at-a-time progressive results, background-safe controls, separate stop and pause. */
+.scout-list .scout-candidate:not(.v071-shortlist-visible):not(.v076-shortlist-visible){display:none!important}
+.scout-list .scout-candidate.v076-shortlist-visible{display:grid!important;content-visibility:auto;contain-intrinsic-size:190px}
+.scout-list .scout-candidate.v076-shortlist-visible img{visibility:visible!important}
+#scoutRescan,.v071-scan-controls,.v074-run-controls,.v075-run-controls,#v074Loading,#v075Loading{display:none!important}
+
+.v076-run-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:10px 0 12px;padding:11px 13px;border:1px solid #d8e8ef;border-radius:14px;background:#fbfdfe}
+.v076-run-copy{display:grid;gap:2px;min-width:0}.v076-run-copy span{font-size:9px;font-weight:800;letter-spacing:.12em;color:#78909a}.v076-run-copy strong{font-size:11px;line-height:1.35;color:#31454e}
+.v076-run-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-left:auto}.v076-run-actions .button{white-space:nowrap}.v076-run-actions .button:disabled{opacity:.42;cursor:not-allowed;filter:saturate(.6)}
+#v076Stop{border-color:#e9b6b6;background:#fff7f7;color:#8a3434}#v076Pause{border-color:#efc785}
+#v076Loading{position:sticky;top:62px;z-index:48}
+#v076Loading.paused{border-color:#d6e5eb;background:#f8fbfc;box-shadow:none}
+#v076Loading.paused .scout-loading-spinner{animation:none;border-color:#cbdde4;border-top-color:#78909a}
+#v076Loading.paused .scout-loading-track i{background:#9ab0ba}
+#v076Loading.stopped{border-color:#ead4d4;background:#fffafa;box-shadow:none}
+#v076Loading.stopped .scout-loading-spinner{animation:none;border-color:#ead4d4;border-top-color:#b66b6b}
+#v076Loading.stopped .scout-loading-track i{background:#b88a8a}
+.scout-summary>div{cursor:default}.scout-summary>div span{user-select:none}
+
+@media(max-width:820px){.v076-run-controls{align-items:stretch}.v076-run-actions{width:100%;margin-left:0;display:grid;grid-template-columns:1fr 1fr}.v076-run-actions .button{width:100%;min-width:0}#v076Loading{top:54px}}
+@media(max-width:430px){.v076-run-actions{grid-template-columns:1fr}.v076-run-copy strong{max-width:34ch}}
+@media(prefers-reduced-motion:reduce){.scout-list .scout-candidate.v076-shortlist-visible{content-visibility:auto}}
