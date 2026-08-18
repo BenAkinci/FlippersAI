@@ -47,4 +47,4 @@ document.addEventListener('flippers:scout-rendered',()=>{ensureUi();pauseOldEngi
 document.addEventListener('flippers:candidate-updated',scheduleStatus)
 new MutationObserver(ms=>{if(ms.every(m=>m.target.closest?.('#v073RunBar,#v073Loading')))return;scheduleStatus()}).observe(document.getElementById('app'),{childList:true,subtree:true,attributes:true,attributeFilter:['class']})
 
-;(async()=>{const stored=await chrome.storage.local.get(PAUSE_KEY).catch(()=>({}));O.paused=Boolean(stored[PAUSE_KEY]);ensureUi();if($('.scout-list')){await chrome.storage.local.set({[PAUSE_KEY]:true});O.paused=false;syncPauseLabel();fastScreen().catch(err=>toast(err.message))}})()
+;(async()=>{const stored=await chrome.storage.local.get(PAUSE_KEY).catch(()=>({}));O.paused=Boolean(stored[PAUSE_KEY]);ensureUi();if($('.scout-list')){if(O.paused){syncPauseLabel();updateLoader();return}await chrome.storage.local.set({[PAUSE_KEY]:true});syncPauseLabel();fastScreen().catch(err=>toast(err.message))}})()
