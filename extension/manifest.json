@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.71.0",
-  "description": "Fast verified Scout screens focused rounds, checks promising listings, gates counterfeit risk, and explains resale, profit, ROI and success potential.",
+  "version": "0.72.0",
+  "description": "Focused background Scout keeps pending and poor listings out of the shortlist, surfaces only verified worthwhile leads, and preserves marketplace ratings.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
