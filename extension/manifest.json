@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.75.0",
-  "description": "Scout screens exactly five listings per batch, surfaces good results after every five, and keeps live rated, working, shortlist and filtered counts accurate.",
+  "version": "0.76.0",
+  "description": "Scout screens exactly five listings at a time, keeps running while you switch browser tabs, and separates Stop from Pause/Resume while preserving progressive results.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
