@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.73.0",
-  "description": "Fast background Scout screens focused batches in parallel, shows live progress, keeps poor and pending listings out of the shortlist, and provides working stop, restart and new-scan controls.",
+  "version": "0.74.0",
+  "description": "Scout screens five listings at a time with page-aware scan controls, while Analyse independently accepts individual listing URLs for full analysis.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
