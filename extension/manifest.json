@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.80.0",
-  "description": "AI-powered reselling workspace with live five-at-a-time Scout progress, one-by-one ratings, persistent marketplace scores and authenticity risk warnings.",
+  "version": "0.81.0",
+  "description": "AI-powered reselling workspace with live five-at-a-time Scout progress, one-by-one ratings and guided Verify-first decision checks.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
