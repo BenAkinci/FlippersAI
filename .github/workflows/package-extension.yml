@@ -6,6 +6,7 @@ on:
     paths:
       - 'extension/**'
       - 'scripts/patch-extension-syntax-v081.mjs'
+      - 'scripts/patch-scout-cumulative-v082.mjs'
       - 'package.json'
       - '.github/workflows/package-extension.yml'
   workflow_dispatch:
@@ -22,6 +23,8 @@ jobs:
           node-version: '22'
       - name: Patch known extension syntax faults
         run: node scripts/patch-extension-syntax-v081.mjs
+      - name: Apply cumulative Scout session behavior
+        run: node scripts/patch-scout-cumulative-v082.mjs
       - name: Validate all extension JavaScript
         run: find extension -maxdepth 1 -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Validate extension manifest
