@@ -7,7 +7,8 @@ const workspace=read('workspace.html')
 const manifest=JSON.parse(read('manifest.json'))
 const expect=(value,message)=>{if(!value)throw new Error(message)}
 
-expect(manifest.version==='0.80.0','manifest must be v0.80.0')
+const [major,minor]=String(manifest.version||'0.0.0').split('.').map(Number)
+expect(major>0||(major===0&&minor>=80),'manifest must be v0.80.0 or newer')
 expect(js.includes('const MAX_BATCH=5'),'Scout must remain capped at five active quick ratings')
 expect(js.includes("api.invoke('scout-quick-rate'"),'Scout must use independent per-listing quick ratings')
 expect(!js.includes("api.invoke('scout-batch-screen'"),'v0.80 quick Scout must not depend on the failing batch endpoint')
@@ -25,4 +26,4 @@ for(const html of [side,workspace]){
   expect(!html.includes('scout-orchestrator-v076.js'),'old orchestrator must not load alongside v0.80')
   expect(html.includes('scout-v080.css'),'v0.80 live progress styles must load')
 }
-console.log('Scout live progress contract v0.80 passed')
+console.log('Scout live progress contract v0.80+ passed')
