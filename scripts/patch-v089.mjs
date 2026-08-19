@@ -14,10 +14,5 @@ update('extension/scout-rating-overlay.js',s=>{
   return s
 })
 
-update('extension/scout-orchestrator-v080.js',s=>{
-  s=s.replace('while(O.enrichWorkers<1&&O.enrichQueue.length)','while(O.enrichWorkers<2&&O.enrichQueue.length)')
-  return s
-})
-
 update('extension/manifest.json',s=>{const m=JSON.parse(s);m.version='0.89.0';m.description='FlippersAI Scout reliability release with persistent marketplace ratings, visible deep-listing enrichment, completed economics states and consistent Shortlist controls.';return JSON.stringify(m,null,2)+'\n'})
 update('package.json',s=>{const p=JSON.parse(s);p.version='0.89.0';return JSON.stringify(p,null,2)+'\n'})
