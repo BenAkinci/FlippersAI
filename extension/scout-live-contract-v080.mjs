@@ -22,7 +22,9 @@ expect(js.includes('O.durations.push'),'Scout must record completion timing for 
 expect(js.includes('Estimated ${fmtTime(estimate)} remaining'),'Scout must show an estimated remaining time after completions')
 expect(js.includes('Taking longer than expected'),'Scout must surface a visible slow/stalled state')
 expect(js.includes('Scout finished with scan errors'),'Scout must not silently hide backend failures')
-expect(js.includes('for(let attempt=1;attempt<=2;attempt++)'),'each quick rating must retry once before failing')
+expect(js.includes('const REQUEST_TIMEOUT=40000'),'Scout must allow normal AI ratings longer than the old 15 second cutoff')
+expect(js.includes('for(let attempt=1;attempt<=3;attempt++)'),'each quick rating must automatically retry twice before failing')
+expect(js.includes('async function retryFailedOnly()'),'failed-only retry must exist without resetting successful ratings')
 for(const html of [side,workspace]){
   expect(html.includes('scout-orchestrator-v080.js'),'v0.80 orchestrator must load')
   expect(!html.includes('scout-orchestrator-v076.js'),'old orchestrator must not load alongside v0.80')
