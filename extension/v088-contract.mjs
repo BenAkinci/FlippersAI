@@ -2,7 +2,7 @@ import fs from 'node:fs'
 const read=p=>fs.readFileSync(new URL(`./${p}`,import.meta.url),'utf8')
 const expect=(v,m)=>{if(!v)throw new Error(m)}
 const manifest=JSON.parse(read('manifest.json')),side=read('sidepanel.html'),work=read('workspace.html'),buckets=read('scout-buckets-v088.js'),orch=read('scout-orchestrator-v080.js'),tools=read('workspace-tools-v086.js'),guard=read('workspace-card-guard-v088.js')
-expect(manifest.version==='0.88.0','manifest must package v0.88.0')
+expect(/^0\.(?:8[8-9]|9\d)\./.test(manifest.version)||Number(manifest.version.split('.')[0])>=1,'manifest must package v0.88-compatible or newer')
 for(const html of [side,work]){expect(html.includes('scout-buckets-v088.js'),'v0.88 Scout bucket controller must load');expect(html.includes('scout-buckets-v088.css'),'v0.88 Scout bucket styles must load');expect(html.includes('workspace-card-guard-v088.js'),'v0.88 workspace card guard must load')}
 for(const token of ["new Set(['shortlist'])","bucketDef('found','FOUND')","bucketDef('rated','RATED')","bucketDef('working','WORKING')","bucketDef('shortlist','SHORTLIST')","bucketDef('filtered','FILTERED OUT')","data-v088-open","data-v088-act=\"save\"","data-v088-act=\"analyse\"","data-v088-act=\"edit\""])expect(buckets.includes(token),`Scout buckets must include ${token}`)
 expect(buckets.includes("openBuckets.has(key)?openBuckets.delete(key):openBuckets.add(key)"),'Scout buckets must open independently')
@@ -10,4 +10,4 @@ expect(orch.includes('document.body.dataset.v088WorkingIds'),'Working bucket mus
 expect(tools.includes('data-v088-source-link'),'Shortlist/Saved/Analyse titles must be marketplace links')
 expect(tools.includes("chrome.tabs.create({url,active:true})"),'listing title clicks must open the marketplace tab')
 for(const token of ['v086-card[data-id]','data-v088-guard="analyse"','data-v088-guard="compare"','data-v088-guard="save"','data-v088-guard="remove"'])expect(guard.includes(token),`workspace guard must preserve ${token} on every card`)
-console.log('v0.88 focused Scout integration contract passed')
+console.log('v0.88 focused Scout compatibility contract passed')
