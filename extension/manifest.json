@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.81.2",
-  "description": "AI-powered reselling workspace with cumulative Scout session counters, self-healing five-at-a-time startup, one-by-one ratings and guided Verify-first decision checks.",
+  "version": "0.85.0",
+  "description": "AI-powered reseller workspace with Scout, permanent Shortlist, Saved Leads, Analyse and marketplace decision support.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
@@ -21,7 +21,7 @@
   "side_panel": {"default_path":"sidepanel.html"},
   "content_scripts": [{
     "matches": ["https://*.facebook.com/*","https://*.ebay.com.au/*","https://*.gumtree.com.au/*","https://*.depop.com/*"],
-    "js": ["content-v070.js","scout-collection-content.js","scout-rating-overlay.js","marketplace-trust-overlay-v079.js"],
+    "js": ["content-v070.js","scout-collection-content.js","scout-rating-overlay.js","marketplace-trust-overlay-v079.js","marketplace-rating-panel-v083.js"],
     "run_at": "document_idle"
   }]
 }
