@@ -5,6 +5,7 @@ function update(path,fn){const before=fs.readFileSync(path,'utf8');const after=f
 for(const path of ['extension/sidepanel.html','extension/workspace.html'])update(path,s=>{
   if(!s.includes('scout-buckets-v088.css'))s=s.replace('</head>','  <link rel="stylesheet" href="scout-buckets-v088.css">\n</head>')
   if(!s.includes('scout-buckets-v088.js'))s=s.replace('</body>','  <script type="module" src="scout-buckets-v088.js"></script>\n</body>')
+  if(!s.includes('workspace-card-guard-v088.js'))s=s.replace('</body>','  <script type="module" src="workspace-card-guard-v088.js"></script>\n</body>')
   return s
 })
 
