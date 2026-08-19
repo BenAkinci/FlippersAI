@@ -1,0 +1,73 @@
+name: Apply auth refresh hotfix
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-auth-refresh-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch auth refresh loop
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('app.js')
+          text = path.read_text()
+          old = """async function boot() {
+            const { data } = await supabase.auth.getSession()
+            state.session = data.session
+            supabase.auth.onAuthStateChange((_event, session) => {
+              state.session = session
+              session ? refresh() : renderAuth()
+            })
+            state.session ? await refresh() : renderAuth()
+          }
+          """
+          new = """async function boot() {
+            const { data } = await supabase.auth.getSession()
+            state.session = data.session
+            let bootComplete = false
+            supabase.auth.onAuthStateChange((event, session) => {
+              const previousUserId = state.session?.user?.id || null
+              const nextUserId = session?.user?.id || null
+              state.session = session
+
+              if (!bootComplete) return
+              if (!session) {
+                if (event === 'SIGNED_OUT' || previousUserId) {
+                  state.bundle = null
+                  renderAuth()
+                }
+                return
+              }
+
+              if (!state.bundle || previousUserId !== nextUserId || event === 'USER_UPDATED') {
+                refresh()
+              }
+            })
+            state.session ? await refresh() : renderAuth()
+            bootComplete = true
+          }
+          """
+          if old not in text:
+            raise SystemExit('Expected boot() block not found; refusing to patch.')
+          path.write_text(text.replace(old, new, 1))
+      - name: Commit hotfix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Fix repeated auth refresh loop"
+            git push
+          fi
