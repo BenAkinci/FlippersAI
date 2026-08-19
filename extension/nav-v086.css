@@ -1,0 +1,36 @@
+/* v0.86 navigation cleanup: deliberate 3x2 layout at side-panel widths,
+   switching to one row only when there is genuinely enough room. */
+.ext-nav{
+  display:grid !important;
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  grid-auto-flow:row !important;
+  align-items:stretch !important;
+  gap:6px 8px !important;
+  padding:9px 12px !important;
+}
+.ext-nav button{
+  width:100% !important;
+  min-width:0 !important;
+  min-height:40px !important;
+  margin:0 !important;
+  padding:8px 6px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:6px !important;
+  white-space:nowrap !important;
+  text-align:center !important;
+}
+.ext-nav button svg,
+.ext-nav button img{
+  flex:0 0 auto !important;
+}
+/* A genuinely wide detached extension window can use all six in one row. */
+@media (min-width:900px){
+  .ext-nav{grid-template-columns:repeat(6,minmax(0,1fr)) !important;}
+}
+/* Very narrow side panels remain usable instead of crushing labels. */
+@media (max-width:360px){
+  .ext-nav{gap:4px !important;padding-inline:8px !important;}
+  .ext-nav button{font-size:10px !important;gap:4px !important;padding-inline:3px !important;}
+}
