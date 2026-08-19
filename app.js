@@ -108,11 +108,27 @@ function focusedWorkflow() {
 async function boot() {
   const { data } = await supabase.auth.getSession()
   state.session = data.session
-  supabase.auth.onAuthStateChange((_event, session) => {
+  let bootComplete = false
+  supabase.auth.onAuthStateChange((event, session) => {
+    const previousUserId = state.session?.user?.id || null
+    const nextUserId = session?.user?.id || null
     state.session = session
-    session ? refresh() : renderAuth()
+
+    if (!bootComplete) return
+    if (!session) {
+      if (event === 'SIGNED_OUT' || previousUserId) {
+        state.bundle = null
+        renderAuth()
+      }
+      return
+    }
+
+    if (!state.bundle || previousUserId !== nextUserId || event === 'USER_UPDATED') {
+      refresh()
+    }
   })
   state.session ? await refresh() : renderAuth()
+  bootComplete = true
 }
 
 function renderAuth(error = '', success = '') {
