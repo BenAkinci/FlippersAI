@@ -1,0 +1,30 @@
+name: Package extension
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'extension/**'
+      - '.github/workflows/package-extension.yml'
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Validate extension manifest
+        run: node -e "JSON.parse(require('fs').readFileSync('extension/manifest.json','utf8')); console.log('manifest ok')"
+      - name: Build extension ZIP
+        run: |
+          mkdir -p dist
+          cd extension
+          zip -r ../dist/FlippersAI-extension.zip . -x '*.DS_Store'
+      - name: Upload extension ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlippersAI-extension
+          path: dist/FlippersAI-extension.zip
+          if-no-files-found: error
+          retention-days: 30
