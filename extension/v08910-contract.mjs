@@ -7,7 +7,7 @@ expect(manifest.version==='0.89.10','manifest must package v0.89.10')
 expect(orch.includes('async function waitForNewScoutSession'),'Start new scan must wait for a newly persisted Scout session')
 expect(orch.includes('const next=await waitForNewScoutSession(previous,10000)'),'Start new scan must explicitly wait for a different session id')
 expect(orch.includes('await syncNewSession();\n  ensureUi();'),'new Scout must attach the rating orchestrator before first batch')
-const start=orch.match(/async function startNewScan\(\)\{[\s\S]*?\n\}/)?.[0]||''
+const a=orch.indexOf('async function startNewScan(){'),b=orch.indexOf('async function autoStartNew',a);const start=a>=0&&b>a?orch.slice(a,b):''
 expect(start.includes('fastScreen().catch'),'Start new scan must directly dispatch the rating engine')
 expect(start.includes('Scout could not start its first batch'),'startup timeout must fail visibly instead of spinning forever')
 expect(!start.includes('location.reload()'),'Start new scan must remain in-place')
