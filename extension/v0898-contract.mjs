@@ -1,0 +1,17 @@
+import fs from 'node:fs'
+const read=p=>fs.readFileSync(new URL(`./${p}`,import.meta.url),'utf8')
+const expect=(v,m)=>{if(!v)throw new Error(m)}
+const manifest=JSON.parse(read('manifest.json'))
+const orchestrator=read('scout-orchestrator-v080.js')
+const css=read('scout-v080.css')
+expect(manifest.version==='0.89.8','manifest must package v0.89.8')
+expect(orchestrator.includes("if(el.classList.contains('v076-shortlist-visible')!==should)"),'listing visibility must only mutate when state actually changes')
+expect(orchestrator.includes("m.type==='attributes'&&m.target.matches?.('.scout-candidate')"),'Scout must ignore its own candidate class mutations')
+expect(orchestrator.includes("el.classList.toggle('stopped',Boolean(O.stopped))"),'loader stopped state must be atomic')
+expect(orchestrator.includes("pause.disabled=O.stopped"),'Pause/Resume must remain interactive while paused')
+expect(orchestrator.includes('restart.disabled=false'),'Restart must remain clickable after Pause/Stop')
+expect(orchestrator.includes('fresh.disabled=false'),'Start new scan must remain clickable after Pause/Stop')
+expect(css.includes('#v080Loading.stopped .scout-loading-spinner{display:none!important'),'stopped Scout must hide spinner')
+expect(css.includes('#v080Loading.stopped .scout-loading-track{display:none!important'),'stopped Scout must hide progress bar')
+expect(css.includes('#v080Loading{pointer-events:none}'),'loader must never block extension controls')
+console.log('v0.89.8 Scout interaction-state contract passed')
