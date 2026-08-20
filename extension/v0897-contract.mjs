@@ -1,0 +1,18 @@
+import fs from 'node:fs'
+const read=p=>fs.readFileSync(new URL(`./${p}`,import.meta.url),'utf8')
+const expect=(v,m)=>{if(!v)throw new Error(m)}
+const manifest=JSON.parse(read('manifest.json'))
+const orch=read('scout-orchestrator-v080.js')
+const session=read('scout-session-v070.js')
+expect(manifest.version==='0.89.7','manifest must package v0.89.7')
+for(const id of ['#v080Stop','#v080Pause','#v080Restart','#v080New'])expect(orch.includes(id),`scan control handler missing ${id}`)
+expect(orch.includes('canStartNew:activeCollection'),'Start new scan must work on any active supported collection page')
+expect(orch.includes("fresh.disabled=!ctx.canStartNew"),'Start new scan enablement must use active collection availability')
+expect(orch.includes("Current Scout restarted from the beginning"),'Restart must restart the whole current Scout')
+expect(orch.includes("round_index:1,order_index:i"),'Restart must fold all current Scout rows back into the restarted scan')
+expect(orch.includes('[STOP_KEY]:true')&&orch.includes('[USER_PAUSE_KEY]:true'),'Stop and Pause must persist actual Scout state')
+expect(orch.includes("syncControlLabels();await refreshControlState()"),'control actions must immediately refresh their visible state')
+expect(session.includes("scout?.tabId||stored?.tabId||null"),'Find next listings must recover the persisted source tab')
+expect(session.includes("FLIPPERS_SCROLL_COLLECTION"),'Find next listings must invoke marketplace collection')
+expect(session.includes("new listings added to this Scout"),'Find next listings must accumulate results in the current Scout')
+console.log('v0.89.7 Scout controls contract passed')
