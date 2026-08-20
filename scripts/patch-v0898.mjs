@@ -3,18 +3,12 @@ import fs from 'node:fs'
 function update(path, fn) {
   const before = fs.readFileSync(path, 'utf8')
   const after = fn(before)
-  if (after !== before) {
-    fs.writeFileSync(path, after)
-    console.log(`${path}: v0.89.8 interaction-state patch applied`)
-  } else {
-    console.log(`${path}: v0.89.8 interaction-state already applied`)
-  }
+  if (after !== before) { fs.writeFileSync(path, after); console.log(`${path}: v0.89.8 interaction-state patch applied`) }
+  else console.log(`${path}: v0.89.8 interaction-state already applied`)
 }
 
 update('extension/scout-orchestrator-v080.js', s => {
-  s = s.replace(
-    /async function refreshControlState\(\)\{[\s\S]*?\}\n\nfunction ensureRemoveButton/,
-    `async function refreshControlState(){
+  s = s.replace(/async function refreshControlState\(\)\{[\s\S]*?\}\n\nfunction ensureRemoveButton/, `async function refreshControlState(){
   const stop=$('#v080Stop'),pause=$('#v080Pause'),restart=$('#v080Restart'),fresh=$('#v080New');
   if(!stop&&!pause&&!restart&&!fresh)return;
   const ctx=await sourceContext();
@@ -26,27 +20,17 @@ update('extension/scout-orchestrator-v080.js', s => {
   if(fresh){fresh.disabled=false;fresh.title=ctx.canStartNew?'Start a completely new Scout on the active marketplace page.':'Open a marketplace results page, then press Start new scan.'}
 }
 
-function ensureRemoveButton`
-  )
+function ensureRemoveButton`)
 
-  s = s.replace(
-    /el\.classList\.remove\('paused','stopped','error'\);/,
-    "el.classList.toggle('paused',Boolean(O.paused&&!O.stopped));el.classList.toggle('stopped',Boolean(O.stopped));el.classList.remove('error');"
-  )
-  s = s.replace(/el\.classList\.add\('visible','stopped'\);/g, "el.classList.add('visible');el.classList.add('stopped');")
-  s = s.replace(/el\.classList\.add\('visible','paused'\);/g, "el.classList.add('visible');el.classList.add('paused');")
+  if(!s.includes("el.classList.toggle('stopped',Boolean(O.stopped))")){
+    s=s.replace(/const currentBatch=/, "el.classList.toggle('paused',Boolean(O.paused&&!O.stopped));el.classList.toggle('stopped',Boolean(O.stopped));el.classList.toggle('error',false);const currentBatch=")
+  }
 
-  s = s.replace(
-    /\$\$\('\.scout-candidate\[data-candidate\]'\)\.forEach\(el=>el\.classList\.remove\('v076-shortlist-visible'\)\);short\.forEach\(c=>\{const el=\$\(`\.scout-candidate\[data-candidate="\$\{CSS\.escape\(String\(c\.id\)\)\}"\]`\);if\(!el\)return;el\.classList\.add\('v076-shortlist-visible'\);/,
-    `const shortIds=new Set(short.map(c=>String(c.id)));$$('.scout-candidate[data-candidate]').forEach(el=>{const should=shortIds.has(String(el.dataset.candidate));if(el.classList.contains('v076-shortlist-visible')!==should)el.classList.toggle('v076-shortlist-visible',should)});short.forEach(c=>{const el=$(\`.scout-candidate[data-candidate="\${CSS.escape(String(c.id))}"]\`);if(!el)return;`
-  )
+  s = s.replace(/\$\$\('\.scout-candidate\[data-candidate\]'\)\.forEach\(el=>el\.classList\.remove\('v076-shortlist-visible'\)\);short\.forEach\(c=>\{const el=\$\(`\.scout-candidate\[data-candidate="\$\{CSS\.escape\(String\(c\.id\)\)\}"\]`\);if\(!el\)return;el\.classList\.add\('v076-shortlist-visible'\);/, `const shortIds=new Set(short.map(c=>String(c.id)));$$('.scout-candidate[data-candidate]').forEach(el=>{const should=shortIds.has(String(el.dataset.candidate));if(el.classList.contains('v076-shortlist-visible')!==should)el.classList.toggle('v076-shortlist-visible',should)});short.forEach(c=>{const el=$(\`.scout-candidate[data-candidate="\${CSS.escape(String(c.id))}"]\`);if(!el)return;`)
 
-  s = s.replace(
-    "new MutationObserver(ms=>{if(ms.every(m=>m.target.closest?.('#v080RunBar,#v080Loading,.scout-summary,.scout-insight')))return;scheduleStatus()})",
-    "new MutationObserver(ms=>{if(ms.every(m=>m.target.closest?.('#v080RunBar,#v080Loading,.scout-summary,.scout-insight')||(m.type==='attributes'&&m.target.matches?.('.scout-candidate'))))return;scheduleStatus()})"
-  )
+  s = s.replace("new MutationObserver(ms=>{if(ms.every(m=>m.target.closest?.('#v080RunBar,#v080Loading,.scout-summary,.scout-insight')))return;scheduleStatus()})", "new MutationObserver(ms=>{if(ms.every(m=>m.target.closest?.('#v080RunBar,#v080Loading,.scout-summary,.scout-insight')||(m.type==='attributes'&&m.target.matches?.('.scout-candidate'))))return;scheduleStatus()})")
 
-  if (!s.includes("el.classList.toggle('stopped',Boolean(O.stopped))")) throw new Error('v0.89.8 could not install atomic stopped loader state')
+  if (!s.includes("el.classList.toggle('stopped',Boolean(O.stopped))")) throw new Error('v0.89.8 could not install stopped loader state')
   if (!s.includes("if(el.classList.contains('v076-shortlist-visible')!==should)")) throw new Error('v0.89.8 could not install stable candidate visibility')
   return s
 })
