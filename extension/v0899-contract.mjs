@@ -1,0 +1,21 @@
+import fs from 'node:fs'
+const read=p=>fs.readFileSync(new URL(`./${p}`,import.meta.url),'utf8')
+const expect=(v,m)=>{if(!v)throw new Error(m)}
+const manifest=JSON.parse(read('manifest.json'))
+const orch=read('scout-orchestrator-v080.js')
+const session=read('scout-session-v070.js')
+const app=read('app.js')
+const css=read('scout-v080.css')
+expect(manifest.version==='0.89.9','manifest must package v0.89.9')
+expect(orch.includes("$$('.scout-candidate[data-candidate]').forEach"),'renderLive must iterate candidate collections with $$')
+expect(!orch.includes("$('.scout-candidate[data-candidate]').forEach"),'renderLive must not call forEach on a single querySelector result')
+const start=orch.match(/async function startNewScan\(\)\{[\s\S]*?\n\}/)?.[0]||''
+expect(start&&!start.includes('location.reload()'),'Start new scan must reset in-place without reloading the side panel')
+expect(start.includes("flippers:clear-scout-memory")&&start.includes("flippers:prepare-new-scout"),'Start new scan must clear old Scout memory and prepare a clean Scan view')
+expect(session.includes("document.addEventListener('flippers:clear-scout-memory'"),'Scout session must clear stale in-memory state')
+expect(app.includes("document.addEventListener('flippers:prepare-new-scout'"),'app must render a clean Scan capture state in-place')
+expect(orch.includes("Scan stopped — no further scanning is running."),'stopped loader copy must explicitly say scanning stopped')
+expect(orch.includes("Scan paused — progress is saved."),'paused loader copy must explicitly say scanning paused')
+expect(css.includes('#v080Loading.paused .scout-loading-spinner{animation:none!important'),'paused spinner must visibly stop animating')
+expect(css.includes('#v080Loading.stopped .scout-loading-spinner,#v080Loading.stopped .scout-loading-track{display:none!important'),'stopped loader must hide spinner and progress bar')
+console.log('v0.89.9 Scout loader + in-place new-scan contract passed')
