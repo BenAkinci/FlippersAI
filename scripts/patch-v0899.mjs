@@ -12,17 +12,12 @@ function update(path, fn) {
 }
 
 update('extension/scout-orchestrator-v080.js', s => {
-  // Critical: renderLive must iterate ALL candidate cards. Use a replacement
-  // callback so the literal $$ is not collapsed by String.replace semantics.
   s = s.replace("$('.scout-candidate[data-candidate]').forEach(el=>{const should=shortIds.has(String(el.dataset.candidate));", () => "$$('.scout-candidate[data-candidate]').forEach(el=>{const should=shortIds.has(String(el.dataset.candidate));")
 
-  // Keep loader state atomic; never clear paused/stopped immediately before reapplying it.
   s = s.replace("el.classList.remove('paused','stopped','error')\n  el.classList.toggle('paused',Boolean(O.paused&&!O.stopped));el.classList.toggle('stopped',Boolean(O.stopped));el.classList.toggle('error',false);", "el.classList.toggle('paused',Boolean(O.paused&&!O.stopped));el.classList.toggle('stopped',Boolean(O.stopped));el.classList.toggle('error',false);")
   s = s.replace("if(copy)copy.textContent=`${ratedRows.length}/${total} rated. No further scanning will run.`", "if(copy)copy.textContent=`${ratedRows.length}/${total} rated. Scan stopped — no further scanning is running.`;if(detail)detail.textContent='Stopped · completed results are saved.'")
   s = s.replace("if(copy)copy.textContent=`${ratedRows.length}/${total} rated. Progress is saved.`", "if(copy)copy.textContent=`${ratedRows.length}/${total} rated. Scan paused — progress is saved.`;if(detail)detail.textContent='Paused · resume when you are ready.'")
 
-  // Start a new Scout in-place. Reloading the whole side panel could leave the app in
-  // a Loading FlippersAI loop while old restore observers competed with the new scan.
   s = s.replace(/async function startNewScan\(\)\{[\s\S]*?\n\}\nasync function autoStartNew/, `async function startNewScan(){
   const ctx=await sourceContext();if(!ctx.canStartNew)return toast('Open a marketplace results page first.');
   O.generation+=1;O.stopped=false;O.paused=false;O.busy=false;O.active.clear();O.durations=[];O.batchNo=0;O.enrichQueue=[];
@@ -38,9 +33,10 @@ update('extension/scout-orchestrator-v080.js', s => {
 }
 async function autoStartNew`)
 
-  if (s.includes("$('.scout-candidate[data-candidate]').forEach")) throw new Error('v0.89.9 still contains single-element candidate forEach')
+  const badSingle=/(^|[^$])\$\('\.scout-candidate\[data-candidate\]'\)\.forEach/m.test(s)
+  if (badSingle) throw new Error('v0.89.9 still contains single-element candidate forEach')
   if (!s.includes("$$('.scout-candidate[data-candidate]').forEach")) throw new Error('v0.89.9 candidate collection fix missing')
-  if (s.includes('location.reload()') && /async function startNewScan\(\)[\s\S]*?location\.reload\(\)/.test(s)) throw new Error('v0.89.9 Start new scan must not reload the extension')
+  if (/async function startNewScan\(\)[\s\S]*?location\.reload\(\)/.test(s)) throw new Error('v0.89.9 Start new scan must not reload the extension')
   return s
 })
 
