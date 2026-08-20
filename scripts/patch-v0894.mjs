@@ -16,7 +16,7 @@ update('extension/scout-orchestrator-v080.js',s=>{
 })
 
 update('extension/workspace-tools-v086.js',s=>{
-  s=s.replace(/(?<!\$)\$\('\[data-v088-source-link\]',main\)\.forEach/g,"$$('[data-v088-source-link]',main).forEach")
+  s=s.replace(/(?<!\$)\$\('\[data-v088-source-link\]',main\)\.forEach/g,()=>"$$('[data-v088-source-link]',main).forEach")
   const listener="$$('[data-v088-source-link]',main).forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const url=a.getAttribute('href');if(url)chrome.tabs.create({url,active:true})}));"
   const first=s.indexOf(listener)
   if(first>=0){let pos=s.indexOf(listener,first+listener.length);while(pos>=0){s=s.slice(0,pos)+s.slice(pos+listener.length);pos=s.indexOf(listener,first+listener.length)}}
