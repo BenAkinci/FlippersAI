@@ -12,9 +12,9 @@ function update(path, fn) {
 }
 
 update('extension/scout-orchestrator-v080.js', s => {
-  // Critical: renderLive must iterate ALL candidate cards. A single-$ querySelector
-  // followed by forEach throws before updateLoader(), leaving Pause/Stop visually stale.
-  s = s.replace("$('.scout-candidate[data-candidate]').forEach(el=>{const should=shortIds.has(String(el.dataset.candidate));", "$$('.scout-candidate[data-candidate]').forEach(el=>{const should=shortIds.has(String(el.dataset.candidate));")
+  // Critical: renderLive must iterate ALL candidate cards. Use a replacement
+  // callback so the literal $$ is not collapsed by String.replace semantics.
+  s = s.replace("$('.scout-candidate[data-candidate]').forEach(el=>{const should=shortIds.has(String(el.dataset.candidate));", () => "$$('.scout-candidate[data-candidate]').forEach(el=>{const should=shortIds.has(String(el.dataset.candidate));")
 
   // Keep loader state atomic; never clear paused/stopped immediately before reapplying it.
   s = s.replace("el.classList.remove('paused','stopped','error')\n  el.classList.toggle('paused',Boolean(O.paused&&!O.stopped));el.classList.toggle('stopped',Boolean(O.stopped));el.classList.toggle('error',false);", "el.classList.toggle('paused',Boolean(O.paused&&!O.stopped));el.classList.toggle('stopped',Boolean(O.stopped));el.classList.toggle('error',false);")
