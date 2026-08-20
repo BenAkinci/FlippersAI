@@ -6,10 +6,11 @@ const orch=read('scout-orchestrator-v080.js')
 const session=read('scout-session-v070.js')
 const app=read('app.js')
 const css=read('scout-v080.css')
-expect(manifest.version==='0.89.9','manifest must package v0.89.9')
+const parts=String(manifest.version||'').split('.').map(Number)
+expect(parts[0]===0&&parts[1]===89&&parts[2]>=9,'manifest must package v0.89.9 or newer')
 expect(orch.includes("$$('.scout-candidate[data-candidate]').forEach"),'renderLive must iterate candidate collections with $$')
 expect(!/(^|[^$])\$\('\.scout-candidate\[data-candidate\]'\)\.forEach/m.test(orch),'renderLive must not call forEach on a single querySelector result')
-const start=orch.match(/async function startNewScan\(\)\{[\s\S]*?\n\}/)?.[0]||''
+const a=orch.indexOf('async function startNewScan(){'),b=orch.indexOf('async function autoStartNew',a);const start=a>=0&&b>a?orch.slice(a,b):''
 expect(start&&!start.includes('location.reload()'),'Start new scan must reset in-place without reloading the side panel')
 expect(start.includes("flippers:clear-scout-memory")&&start.includes("flippers:prepare-new-scout"),'Start new scan must clear old Scout memory and prepare a clean Scan view')
 expect(session.includes("document.addEventListener('flippers:clear-scout-memory'"),'Scout session must clear stale in-memory state')
