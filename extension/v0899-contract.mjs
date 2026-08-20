@@ -8,7 +8,7 @@ const app=read('app.js')
 const css=read('scout-v080.css')
 expect(manifest.version==='0.89.9','manifest must package v0.89.9')
 expect(orch.includes("$$('.scout-candidate[data-candidate]').forEach"),'renderLive must iterate candidate collections with $$')
-expect(!orch.includes("$('.scout-candidate[data-candidate]').forEach"),'renderLive must not call forEach on a single querySelector result')
+expect(!/(^|[^$])\$\('\.scout-candidate\[data-candidate\]'\)\.forEach/m.test(orch),'renderLive must not call forEach on a single querySelector result')
 const start=orch.match(/async function startNewScan\(\)\{[\s\S]*?\n\}/)?.[0]||''
 expect(start&&!start.includes('location.reload()'),'Start new scan must reset in-place without reloading the side panel')
 expect(start.includes("flippers:clear-scout-memory")&&start.includes("flippers:prepare-new-scout"),'Start new scan must clear old Scout memory and prepare a clean Scan view')
