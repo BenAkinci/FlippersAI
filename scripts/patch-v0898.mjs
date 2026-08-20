@@ -12,9 +12,6 @@ function update(path, fn) {
 }
 
 update('extension/scout-orchestrator-v080.js', s => {
-  // Do not disable the whole control path after Pause/Stop. Resume must always
-  // remain available while paused; Restart/New remain clickable so their own
-  // handlers can explain any missing marketplace context rather than looking dead.
   s = s.replace(
     /async function refreshControlState\(\)\{[\s\S]*?\}\n\nfunction ensureRemoveButton/,
     `async function refreshControlState(){
@@ -32,32 +29,25 @@ update('extension/scout-orchestrator-v080.js', s => {
 function ensureRemoveButton`
   )
 
-  // Avoid transient loader states. Previously every render removed paused/stopped
-  // classes before re-adding them, allowing other observers to briefly see the
-  // loader as active again. Keep the desired state continuously instead.
   s = s.replace(
-    "el.classList.remove('paused','stopped','error');const currentBatch=",
-    "el.classList.toggle('paused',Boolean(O.paused&&!O.stopped));el.classList.toggle('stopped',Boolean(O.stopped));el.classList.remove('error');const currentBatch="
+    /el\.classList\.remove\('paused','stopped','error'\);/,
+    "el.classList.toggle('paused',Boolean(O.paused&&!O.stopped));el.classList.toggle('stopped',Boolean(O.stopped));el.classList.remove('error');"
   )
-  s = s.replace("el.classList.add('visible','stopped');if(strong)", "el.classList.add('visible');if(strong)")
-  s = s.replace("el.classList.add('visible','paused');if(strong)", "el.classList.add('visible');if(strong)")
+  s = s.replace(/el\.classList\.add\('visible','stopped'\);/g, "el.classList.add('visible');el.classList.add('stopped');")
+  s = s.replace(/el\.classList\.add\('visible','paused'\);/g, "el.classList.add('visible');el.classList.add('paused');")
 
-  // The previous render path removed v076-shortlist-visible from every card then
-  // immediately added it back to shortlisted cards. Because class mutations are
-  // observed, that created a self-triggering render loop. Toggle only when the
-  // actual shortlist membership changes.
   s = s.replace(
     /\$\$\('\.scout-candidate\[data-candidate\]'\)\.forEach\(el=>el\.classList\.remove\('v076-shortlist-visible'\)\);short\.forEach\(c=>\{const el=\$\(`\.scout-candidate\[data-candidate="\$\{CSS\.escape\(String\(c\.id\)\)\}"\]`\);if\(!el\)return;el\.classList\.add\('v076-shortlist-visible'\);/,
     `const shortIds=new Set(short.map(c=>String(c.id)));$$('.scout-candidate[data-candidate]').forEach(el=>{const should=shortIds.has(String(el.dataset.candidate));if(el.classList.contains('v076-shortlist-visible')!==should)el.classList.toggle('v076-shortlist-visible',should)});short.forEach(c=>{const el=$(\`.scout-candidate[data-candidate="\${CSS.escape(String(c.id))}"]\`);if(!el)return;`
   )
 
-  // Ignore Scout's own shortlist-visibility class mutations. They are output,
-  // not a reason to immediately schedule another full status render.
   s = s.replace(
     "new MutationObserver(ms=>{if(ms.every(m=>m.target.closest?.('#v080RunBar,#v080Loading,.scout-summary,.scout-insight')))return;scheduleStatus()})",
     "new MutationObserver(ms=>{if(ms.every(m=>m.target.closest?.('#v080RunBar,#v080Loading,.scout-summary,.scout-insight')||(m.type==='attributes'&&m.target.matches?.('.scout-candidate'))))return;scheduleStatus()})"
   )
 
+  if (!s.includes("el.classList.toggle('stopped',Boolean(O.stopped))")) throw new Error('v0.89.8 could not install atomic stopped loader state')
+  if (!s.includes("if(el.classList.contains('v076-shortlist-visible')!==should)")) throw new Error('v0.89.8 could not install stable candidate visibility')
   return s
 })
 
