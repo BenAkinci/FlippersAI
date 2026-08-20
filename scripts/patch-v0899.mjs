@@ -36,7 +36,8 @@ async function autoStartNew`)
   const badSingle=/(^|[^$])\$\('\.scout-candidate\[data-candidate\]'\)\.forEach/m.test(s)
   if (badSingle) throw new Error('v0.89.9 still contains single-element candidate forEach')
   if (!s.includes("$$('.scout-candidate[data-candidate]').forEach")) throw new Error('v0.89.9 candidate collection fix missing')
-  if (/async function startNewScan\(\)[\s\S]*?location\.reload\(\)/.test(s)) throw new Error('v0.89.9 Start new scan must not reload the extension')
+  const start=s.match(/async function startNewScan\(\)\{[\s\S]*?\n\}/)?.[0]||''
+  if (!start || start.includes('location.reload()')) throw new Error('v0.89.9 Start new scan must reset in-place')
   return s
 })
 
