@@ -23,6 +23,7 @@ async function act(card,action){const id=card?.dataset.id;if(action==='clear-com
  if(action==='analyse'){toast('Running deeper analysis…');const r=await chrome.runtime.sendMessage({type:'FLIPPERS_V083_ACTION',id,action:'analyse'});if(!r?.ok)throw new Error(r?.error||'Analysis failed');toast('Analysis ready');return}
  if(action==='remove'){if(view()==='shortlist'){const r=await chrome.runtime.sendMessage({type:'FLIPPERS_V083_ACTION',id,action:'remove_shortlist'});if(!r?.ok)throw new Error(r?.error||'Could not remove')}else await api.update('scout_candidates',`id=eq.${id}`,{saved:false,saved_at:null,updated_at:new Date().toISOString()});card.remove();toast('Removed');return}
  if(action==='compare'){compare.has(String(id))?compare.delete(String(id)):compare.size<3?compare.add(String(id)):toast('Compare up to 3 leads');renderCompare();const b=$('[data-v088-guard="compare"]',card);if(b)b.textContent=compare.has(String(id))?'Comparing ✓':'Compare'}
+}
 
 document.addEventListener('click',e=>{const b=e.target.closest?.('[data-v088-guard]');if(!b)return;const action=b.dataset.v088Guard;if(action==='open'){e.preventDefault()}act(b.closest('.v086-card'),action).catch(err=>toast(err.message))},true)
 new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(ensure,70)}).observe(document.getElementById('app'),{childList:true,subtree:true})
