@@ -1,6 +1,9 @@
 import { CONFIG } from './config.js'
 
 const SESSION_KEY = 'flippersai_session_v1'
+const SCOUT_CACHE_TTL_MS = 1500
+const scoutSelectCache = new Map()
+const scoutSelectInflight = new Map()
 
 function qs(params = {}) {
   const out = new URLSearchParams()
@@ -9,6 +12,15 @@ function qs(params = {}) {
     out.set(key, String(value))
   }
   return out.toString()
+}
+
+function scoutCacheKey(table, query = '') {
+  return table === 'scout_candidates' ? `${table}?${query}` : null
+}
+
+function invalidateScoutCache() {
+  scoutSelectCache.clear()
+  scoutSelectInflight.clear()
 }
 
 async function storageGet(key) {
@@ -136,6 +148,7 @@ async function signOut() {
       })
     } catch {}
   }
+  invalidateScoutCache()
   await clearSession()
 }
 
@@ -151,9 +164,27 @@ async function getUser() {
 
 async function select(table, query = '') {
   const suffix = query ? `?${query}` : ''
-  return request(`${CONFIG.supabaseUrl}/rest/v1/${table}${suffix}`, {
+  const key = scoutCacheKey(table, query)
+  if (key) {
+    const cached = scoutSelectCache.get(key)
+    if (cached && Date.now() - cached.at < SCOUT_CACHE_TTL_MS) return cached.data
+    const pending = scoutSelectInflight.get(key)
+    if (pending) return pending
+  }
+
+  const promise = request(`${CONFIG.supabaseUrl}/rest/v1/${table}${suffix}`, {
     headers: await authHeaders({ Accept: 'application/json' })
   })
+
+  if (!key) return promise
+  scoutSelectInflight.set(key, promise)
+  try {
+    const data = await promise
+    scoutSelectCache.set(key, { at: Date.now(), data })
+    return data
+  } finally {
+    if (scoutSelectInflight.get(key) === promise) scoutSelectInflight.delete(key)
+  }
 }
 
 async function insert(table, body, { single = false } = {}) {
@@ -165,6 +196,7 @@ async function insert(table, body, { single = false } = {}) {
     }),
     body: JSON.stringify(body)
   })
+  if (table === 'scout_candidates') invalidateScoutCache()
   return single ? (Array.isArray(data) ? data[0] || null : data) : data
 }
 
@@ -178,15 +210,18 @@ async function update(table, filters, body, { single = false } = {}) {
     }),
     body: JSON.stringify(body)
   })
+  if (table === 'scout_candidates') invalidateScoutCache()
   return single ? (Array.isArray(data) ? data[0] || null : data) : data
 }
 
 async function remove(table, filters) {
   const query = typeof filters === 'string' ? filters : qs(filters)
-  return request(`${CONFIG.supabaseUrl}/rest/v1/${table}?${query}`, {
+  const data = await request(`${CONFIG.supabaseUrl}/rest/v1/${table}?${query}`, {
     method: 'DELETE',
     headers: await authHeaders({ Prefer: 'return=representation' })
   })
+  if (table === 'scout_candidates') invalidateScoutCache()
+  return data
 }
 
 async function rpc(name, body = {}) {
