@@ -1,0 +1,17 @@
+import fs from 'node:fs'
+const read=p=>fs.readFileSync(new URL(`./${p}`,import.meta.url),'utf8')
+const expect=(v,m)=>{if(!v)throw new Error(m)}
+const manifest=JSON.parse(read('manifest.json'))
+const orch=read('scout-orchestrator-v080.js')
+const session=read('scout-session-v070.js')
+const sw=read('service-worker.js')
+expect(manifest.version==='0.89.13','manifest must package v0.89.13')
+expect(!orch.includes("window.addEventListener('pagehide'"),'ordinary pagehide must not stop or clear Scout')
+expect(sw.includes("case'FLIPPERS_SCOUT_PANEL_CLOSED':return{ok:true};"),'legacy panel-close message must be harmless')
+expect(session.includes("persistScout().catch(()=>{});document.dispatchEvent(new CustomEvent('flippers:scout-rendered'"),'visible Scout must persist active session before rating handoff')
+expect(orch.includes("async function fastScreen(){if(O.busy||O.paused||O.stopped||O.interrupted)return;const stored=await activeScout();if(!stored?.sessionId)return;O.busy=true"),'rating loop must require and then claim active Scout session')
+expect(orch.includes("chunk.forEach(c=>O.active.set(String(c.id),{started:Date.now()}));renderLive(rows);await Promise.allSettled(chunk.map(c=>rateOne(c,generation)))"),'Batch 1 must mark Working before rating dispatch')
+expect(!orch.includes('renderLive(rows);queueEnrichment(rr);while(generation===O.generation'),'deep enrichment must not run before quick rating begins')
+expect(orch.includes('O.interrupted=false;O.busy=false;O.active.clear();O.durations=[];O.batchNo=0;O.enrichQueue=[];'),'restart must reset interruption without referencing undefined state')
+expect(orch.includes('O.stopped=Boolean(stored[STOP_KEY]);O.paused=Boolean(stored[USER_PAUSE_KEY]);'),'startup must preserve explicit Stop without deleting the active Scout')
+console.log('v0.89.13 Scout Found -> Working -> Rated handoff contract passed')
