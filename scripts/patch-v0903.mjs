@@ -10,16 +10,6 @@ if(!overlay.includes('const unmatchedSince = new WeakMap()')){
   )
 }
 
-const oldClear=`  function clearUnmatched(matched) {
-    document.querySelectorAll(\`.\${HOST}\`).forEach(root => {
-      if (!matched.has(root)) removeNew(root)
-    })
-    document.querySelectorAll(\`.\${IMAGE}\`).forEach(img => {
-      const root = img.closest(\`.\${HOST}\`)
-      if (!root || !matched.has(root)) img.classList.remove(IMAGE,'good','warn','bad')
-    })
-  }`
-
 const newClear=`  function clearUnmatched(matched) {
     const now = Date.now()
     document.querySelectorAll(\`.\${HOST}\`).forEach(root => {
@@ -40,16 +30,20 @@ const newClear=`  function clearUnmatched(matched) {
       const firstMiss = root ? (unmatchedSince.get(root) || now) : now
       if (now - firstMiss >= 1400) img.classList.remove(IMAGE,'good','warn','bad')
     })
-  }`
+  }
+
+`
 
 if(!overlay.includes('now - firstMiss < 1400')){
-  if(!overlay.includes(oldClear)) throw new Error('v0.90.3 patch target missing: clearUnmatched')
-  overlay=overlay.replace(oldClear,newClear)
+  const start=overlay.indexOf('  function clearUnmatched(matched) {')
+  const end=overlay.indexOf('  function apply() {',start)
+  if(start<0||end<0) throw new Error('v0.90.3 patch target missing: clearUnmatched structure')
+  overlay=overlay.slice(0,start)+newClear+overlay.slice(end)
 }
 
-overlay=overlay.replace('  function schedule(delay = 70) {','  function schedule(delay = 24) {')
-overlay=overlay.replace("window.addEventListener('resize', () => schedule(40), { passive:true })","window.addEventListener('resize', () => schedule(24), { passive:true })")
-overlay=overlay.replace("document.addEventListener('load', event => { if (event.target?.tagName === 'IMG') schedule(30) }, true)","document.addEventListener('load', event => { if (event.target?.tagName === 'IMG') schedule(24) }, true)")
+overlay=overlay.replace(/  function schedule\(delay = \d+\) \{/,'  function schedule(delay = 24) {')
+overlay=overlay.replace(/window\.addEventListener\('resize', \(\) => schedule\(\d+\), \{ passive:true \}\)/,"window.addEventListener('resize', () => schedule(24), { passive:true })")
+overlay=overlay.replace(/document\.addEventListener\('load', event => \{ if \(event\.target\?\.tagName === 'IMG'\) schedule\(\d+\) \}, true\)/,"document.addEventListener('load', event => { if (event.target?.tagName === 'IMG') schedule(24) }, true)")
 
 fs.writeFileSync(overlayPath,overlay)
 
