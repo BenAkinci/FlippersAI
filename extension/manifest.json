@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.85.0",
-  "description": "AI-powered reseller workspace with Scout, permanent Shortlist, Saved Leads, Analyse and marketplace decision support.",
+  "version": "0.91.0",
+  "description": "FlippersAI v0.91 consolidated reseller workspace with stable Scout and marketplace decision support.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
