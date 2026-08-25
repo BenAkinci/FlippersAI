@@ -13,6 +13,7 @@ for(const html of [side,work]){
   expect(html.includes('scout-controller-v090.js'),'single Scout controller must remain loaded')
   expect(html.includes('scout-buckets-v088.js'),'expandable Scout buckets must remain available')
   expect(html.includes('workspace-tools-v086.js'),'Shortlist/Saved/Analyse workspace must remain available')
+  expect(html.includes('v091-scan-ui.css'),'v0.91 Scan presentation guard must load')
 }
 expect(ctrl.includes('class="scout-loading-copy"'),'Scout controller must own progress-card copy')
 expect(ctrl.includes('class="scout-summary"'),'Scout controller must own stage counters')
@@ -21,6 +22,8 @@ expect(ctrl.includes("ls.textContent='Scan complete'"),'Scout controller must ex
 expect(ctrl.includes('document.body.dataset.v088WorkingIds=JSON.stringify(workingIds)'),'Working count must publish active listing IDs')
 expect(tools.includes('/* v091 scan recovery disabled */ return;'),'workspace tools must not inject an independent Scan recovery summary')
 expect(overlay.includes('flippersRatingIdentity'),'marketplace badges must retain listing identity across rerenders')
-expect(overlay.includes('if (!current || current === previous) return'),'temporary marketplace link loss must preserve a rating badge')
-expect(overlay.includes("root.removeAttribute('data-flippers-rating-identity')"),'recycled marketplace cards must clear stale rating identity')
+expect(!overlay.includes('clearUnmatched('),'consolidated overlay must not remove/recreate badges on transient unmatched renders')
+expect(overlay.includes('if(badge.className!==cls)'),'badge class painting must remain idempotent')
+expect(overlay.includes('if(badge.innerHTML!==html)'),'badge content painting must remain idempotent')
+expect(overlay.includes('function schedule(delay=80)'),'marketplace repaint scheduling must be stable and throttled')
 console.log('v0.91 single-owner Scan + stable marketplace overlay contract passed')
