@@ -7,8 +7,13 @@ expect(parts[0]===0&&parts[1]===89&&parts[2]>=2,'manifest must preserve v0.89.2+
 for(const h of [side,work]){expect(h.includes('scout-v0892.css'),'v0.89.2 CSS must load');expect(h.includes('workspace-actions-v0892.js'),'v0.89.2 actions must load')}
 expect(orch.includes('economicLoss=c=>'),'Shortlist must have an economic loss gate')
 expect(orch.includes('a.opportunity_score=Math.min')&&orch.includes('expected_roi_percent<=0'),'negative economics must cap opportunity score')
-expect(orch.includes('FLIPPERS_SCOUT_PANEL_CLOSED'),'panel close must stop Scout state')
-expect(sw.includes("case'FLIPPERS_SCOUT_PANEL_CLOSED'"),'service worker must persist panel close stop')
+if(parts[2]>=13){
+  expect(!orch.includes("window.addEventListener('pagehide'"),'ordinary pagehide must not destroy active Scout state')
+  expect(sw.includes("case'FLIPPERS_SCOUT_PANEL_CLOSED':return{ok:true};"),'legacy panel-close message must be harmless after lifecycle repair')
+}else{
+  expect(orch.includes('FLIPPERS_SCOUT_PANEL_CLOSED'),'panel close must stop Scout state')
+  expect(sw.includes("case'FLIPPERS_SCOUT_PANEL_CLOSED'"),'service worker must persist panel close stop')
+}
 expect(css.includes('#v080Loading{position:relative!important')&&css.includes('clear:both!important'),'loader must remain in document flow')
 expect(smart.includes("lastHtml=''"),'Area/category overview must suppress unchanged rerenders')
 for(const token of ['analyse_queued:true','openCompare','inlineEdit','startDeal','Saved to Saved Leads','v0892-tag-chips'])expect(actions.includes(token),`workspace action layer must include ${token}`)
