@@ -1,0 +1,16 @@
+import fs from 'node:fs'
+const read=p=>fs.readFileSync(new URL(`./${p}`,import.meta.url),'utf8')
+const expect=(v,m)=>{if(!v)throw new Error(m)}
+const manifest=JSON.parse(read('manifest.json'))
+const scout=read('scout-controller-v090.js')
+const overlay=read('scout-rating-overlay.js')
+expect(manifest.version==='0.90.2','manifest must package v0.90.2')
+expect(scout.includes('document.body.dataset.v088WorkingIds=JSON.stringify(workingIds)'),'Working IDs must be published to the bucket UI')
+expect(scout.includes("document.body.dataset.v088WorkingIds='[]'"),'new scan must clear old Working IDs')
+expect(scout.includes("toast('Starting a new Scout…');await handleScan()"),'Start new scan must immediately scan the current marketplace page')
+expect(!scout.includes("await clearPersisted();location.reload()"),'Start new scan must not return to the default/home view')
+expect(overlay.includes('function clearUnmatched(matched, maps)'),'rating cleanup must understand current rating identities')
+expect(overlay.includes('if (!anchors.length) return'),'ratings must survive transient marketplace DOM gaps')
+expect(overlay.includes('clearUnmatched(matched, maps)'),'stable cleanup must receive the rating map')
+expect(overlay.includes('function schedule(delay = 120)'),'marketplace rerender churn must be debounced')
+console.log('v0.90.2 Working + stable overlay + immediate new scan contract passed')
