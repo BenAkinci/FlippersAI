@@ -15,7 +15,7 @@ const css=read('scout-v080.css')
 expect(manifest.version==='0.89.12','manifest must package v0.89.12')
 expect(api.includes('SCOUT_CACHE_TTL_MS = 5000'),'Scout read cache must have a stable short TTL')
 expect(api.includes("const session = params.get('session_id')"),'Scout cache must canonicalise session reads')
-expect(api.includes('select=*&session_id=${session}'),'equivalent full session reads must share one cache key')
+expect(api.includes("return table + '?select=*&session_id=' + session"),'equivalent full session reads must share one cache key')
 for(const html of [side,work]){
   expect(!html.includes('scout-start-watchdog-v081.js'),'legacy Scout watchdog must not load')
   expect((html.match(/scout-loader-state-v083\.js/g)||[]).length<=1,'loader-state script must not load twice')
