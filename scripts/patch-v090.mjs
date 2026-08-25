@@ -12,6 +12,14 @@ const cleanHtml=path=>{
 cleanHtml('extension/sidepanel.html')
 cleanHtml('extension/workspace.html')
 
+const ctrlPath='extension/scout-controller-v090.js'
+let ctrl=fs.readFileSync(ctrlPath,'utf8')
+if(!ctrl.includes('const economicLoss=')){
+  ctrl=ctrl.replace("const risky=c=>['likely_counterfeit','high_risk'].includes(c?.analysis?.authenticity_status)\nconst worthwhile=c=>rated(c)&&score(c)>=SHORTLIST_SCORE&&rec(c)!=='skip'&&!risky(c)","const risky=c=>['likely_counterfeit','high_risk'].includes(c?.analysis?.authenticity_status)\nconst economicLoss=c=>{const a=c?.analysis||{},p=Number(a.expected_profit??c?.expected_profit),r=Number(a.expected_roi_percent??c?.expected_roi_percent),ask=Number(c?.asking_price),resale=Number(a.resale_mid??c?.resale_mid);return(Number.isFinite(p)&&p<=0)||(Number.isFinite(r)&&r<=0)||(Number.isFinite(ask)&&Number.isFinite(resale)&&resale<ask)}\nconst worthwhile=c=>rated(c)&&score(c)>=SHORTLIST_SCORE&&rec(c)!=='skip'&&!risky(c)&&!economicLoss(c)")
+  ctrl=ctrl.replace("async function saveResult(c,r,engine){const a={...r,engine_version:engine||'flippers-scout-batch-v090',scout_scan_depth:'search_page',scout_enriched:false};", "async function saveResult(c,r,engine){const a={...r,engine_version:engine||'flippers-scout-batch-v090',scout_scan_depth:'search_page',scout_enriched:false};const ask=Number(c?.asking_price),profit=Number(a.expected_profit),roi=Number(a.expected_roi_percent),resale=Number(a.resale_mid);if((Number.isFinite(profit)&&profit<=0)||(Number.isFinite(roi)&&roi<=0)||(Number.isFinite(ask)&&Number.isFinite(resale)&&resale<ask)){a.overall_score=Math.min(Number(a.overall_score||0),49);a.success_potential=Math.min(Number(a.success_potential||0),45);a.recommendation='skip';}")
+  fs.writeFileSync(ctrlPath,ctrl)
+}
+
 const manifestPath='extension/manifest.json'
 const manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'))
 manifest.version='0.90.0'
