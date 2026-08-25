@@ -1,0 +1,18 @@
+import fs from 'node:fs'
+const read=p=>fs.readFileSync(new URL(`./${p}`,import.meta.url),'utf8')
+const expect=(v,m)=>{if(!v)throw new Error(m)}
+const manifest=JSON.parse(read('manifest.json'))
+const scout=read('scout-controller-v090.js')
+const css=read('scout-v080.css')
+expect(manifest.version==='0.90.1','manifest must package v0.90.1')
+expect(scout.includes("working=rows.filter(c=>c.scan_status==='working').length||state.active.size"),'Working must come from actual candidate processing state')
+expect(scout.includes('id="v090More"'),'Scan more listings control must exist')
+expect(scout.includes("$('#v090More')?.addEventListener('click',scanMore)"),'Scan more listings must be wired')
+expect(scout.includes('async function scanMore()'),'Scan more listings must have a real handler')
+expect(scout.includes("loader?.classList.add('visible','completed')"),'completed scans must show a completion state')
+expect(scout.includes("ls.textContent='Scan complete'"),'completed scans must say Scan complete')
+expect(scout.includes("pause.disabled=Boolean(complete||state.status==='stopped')"),'Pause must disable after completion')
+expect(scout.includes("stop.disabled=Boolean(complete||state.status==='stopped')"),'Stop must disable after completion')
+expect(scout.includes('more.disabled=!complete'),'Scan more must enable only once the current round is complete')
+expect(css.includes('#v090Loading.completed .scout-loading-spinner'),'completed Scout spinner must stop looking active')
+console.log('v0.90.1 Scout controls contract passed')
