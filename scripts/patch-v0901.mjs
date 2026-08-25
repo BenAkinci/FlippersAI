@@ -4,6 +4,7 @@ const path='extension/scout-controller-v090.js'
 let s=fs.readFileSync(path,'utf8')
 
 const need=(before,after,label)=>{
+  if(s.includes(after)) return
   if(!s.includes(before)) throw new Error(`v0.90.1 patch target missing: ${label}`)
   s=s.replace(before,after)
 }
