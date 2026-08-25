@@ -1,0 +1,1 @@
+This release consolidates Scan runtime ownership before further feature development.
