@@ -1,0 +1,1 @@
+No new product features. Fix Scan ownership conflicts, preserve headings/progress/stats/info, stabilise marketplace ratings.
