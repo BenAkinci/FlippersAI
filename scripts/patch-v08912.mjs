@@ -97,7 +97,9 @@ update('extension/scout-orchestrator-v080.js', s => {
   s = s.replace("O.stopped=false;O.paused=false;O.busy=false;", "O.stopped=false;O.paused=false;O.interrupted=Boolean(stored.interrupted);O.busy=false;")
   s = s.replace("if(!O.paused&&!O.stopped)fastScreen().catch(err=>toast(err.message))", "if(!O.paused&&!O.stopped&&!O.interrupted)fastScreen().catch(err=>toast(err.message))")
   s = s.replace("O.paused=Boolean(stored[USER_PAUSE_KEY]);O.stopped=false;const active=await activeScout();O.sessionId=active?.sessionId||null;", "O.paused=Boolean(stored[USER_PAUSE_KEY]);O.stopped=false;const active=await activeScout();O.interrupted=Boolean(active?.interrupted);O.sessionId=active?.sessionId||null;")
-  s = s.replace("queueEnrichment(roundRows(rows));if(!O.paused&&!O.stopped&&!O.interrupted)fastScreen()", "if(!O.interrupted)queueEnrichment(roundRows(rows));if(!O.paused&&!O.stopped&&!O.interrupted)fastScreen()")
+  // Guard every enrichment handoff structurally. Earlier versions used several
+  // different surrounding statements, so matching one exact call site was too fragile.
+  s = s.replace(/(?<!O\.interrupted\))queueEnrichment\(roundRows\(rows\)\);/g, "if(!O.interrupted)queueEnrichment(roundRows(rows));")
   s = s.replace("if(stop){stop.disabled=O.stopped;", "if(stop){stop.disabled=O.stopped&&!O.interrupted;")
   s = s.replace("if(pause){pause.disabled=O.stopped;", "if(pause){pause.disabled=O.stopped&&!O.interrupted;")
   return s
