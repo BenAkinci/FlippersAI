@@ -30,24 +30,13 @@ let overlay=fs.readFileSync(overlayPath,'utf8')
 
 overlay=replaceOnce(
   overlay,
-  "function clearUnmatched(matched) {\n    document.querySelectorAll(`.${HOST}`).forEach(root => {\n      if (!matched.has(root)) removeNew(root)\n    })\n    document.querySelectorAll(`.${IMAGE}`).forEach(img => {\n      const root = img.closest(`.${HOST}`)\n      if (!root || !matched.has(root)) img.classList.remove(IMAGE,'good','warn','bad')\n    })\n  }",
-  "function clearUnmatched(matched, maps) {\n    document.querySelectorAll(`.${HOST}`).forEach(root => {\n      if (matched.has(root) || !root.isConnected) return\n      const anchors = [...root.querySelectorAll('a[href]')]\n      // Marketplace frameworks such as Depop briefly remove/reinsert anchors while\n      // reconciling a card. Keep the existing badge during that transient gap so\n      // a valid rating does not disappear and flash back a moment later.\n      if (!anchors.length) return\n      const stillRated = anchors.some(a => matchRating(abs(a.getAttribute('href') || a.href || ''), maps))\n      if (!stillRated) removeNew(root)\n    })\n    document.querySelectorAll(`.${IMAGE}`).forEach(img => {\n      const root = img.closest(`.${HOST}`)\n      if (!root) img.classList.remove(IMAGE,'good','warn','bad')\n    })\n  }",
-  'stable marketplace badge cleanup'
+  "    badge.className = `${BADGE} ${t}${elite(rating) ? ' elite' : ''}`\n    badge.innerHTML = `<span class=\"flippersai-mark-v077\">FlippersAI</span><b>${scoreOf(rating)}/100</b>`\n    badge.title = `${clean(rating.recommendation || 'Rated').replaceAll('_',' ')} · FlippersAI score ${scoreOf(rating)}/100`\n\n    root.querySelectorAll(`.${IMAGE}`).forEach(img => img.classList.remove(IMAGE,'good','warn','bad'))\n    if (image) {",
+  "    const badgeClass = `${BADGE} ${t}${elite(rating) ? ' elite' : ''}`\n    const badgeHtml = `<span class=\"flippersai-mark-v077\">FlippersAI</span><b>${scoreOf(rating)}/100</b>`\n    const badgeTitle = `${clean(rating.recommendation || 'Rated').replaceAll('_',' ')} · FlippersAI score ${scoreOf(rating)}/100`\n    if (badge.className !== badgeClass) badge.className = badgeClass\n    if (badge.innerHTML !== badgeHtml) badge.innerHTML = badgeHtml\n    if (badge.title !== badgeTitle) badge.title = badgeTitle\n\n    root.querySelectorAll(`.${IMAGE}`).forEach(img => { if (!image || img !== image.img) img.classList.remove(IMAGE,'good','warn','bad') })\n    if (image) {",
+  'idempotent marketplace rating paint'
 )
 
-overlay=replaceOnce(
-  overlay,
-  "    clearUnmatched(matched)\n  }",
-  "    clearUnmatched(matched, maps)\n  }",
-  'pass rating map into stable cleanup'
-)
-
-overlay=replaceOnce(
-  overlay,
-  "  function schedule(delay = 70) {",
-  "  function schedule(delay = 120) {",
-  'debounce marketplace rerender churn'
-)
+// v0.89.6 already throttles marketplace repaint work to 220ms. Keep that stable
+// throttling and eliminate self-triggered DOM mutations instead of adding another timer.
 
 fs.writeFileSync(overlayPath,overlay)
 
