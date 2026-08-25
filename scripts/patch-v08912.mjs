@@ -21,15 +21,15 @@ update('extension/api.js', s => {
   const select = params.get('select') || '*'
   // Only canonicalise complete candidate rows. Field-specific reads keep their
   // exact key so a narrow response can never poison a later full-row read.
-  if (select !== '*') return \`${table}?${query}\`
+  if (select !== '*') return table + '?' + query
   const session = params.get('session_id')
-  if (session) return \`${table}?select=*&session_id=${session}\`
+  if (session) return table + '?select=*&session_id=' + session
   const id = params.get('id') || ''
   if (id.startsWith('in.(') && id.endsWith(')')) {
     const ids = id.slice(4, -1).split(',').map(x => x.trim()).filter(Boolean).sort()
-    return \`${table}?select=*&id=in.(${ids.join(',')})\`
+    return table + '?select=*&id=in.(' + ids.join(',') + ')'
   }
-  return \`${table}?${query}\`
+  return table + '?' + query
 }`)
   return s
 })
@@ -53,16 +53,11 @@ for (const path of ['extension/sidepanel.html', 'extension/workspace.html']) {
   })
 }
 
-// Deep enrichment UI should refresh because candidate data changed, not poll
-// Supabase forever when nothing changed.
 update('extension/scout-enrichment-state-v089.js', s => {
   s = s.replace(/^setInterval\(\(\)=>schedule\(0\),1800\)\s*$/m, '')
   return s
 })
 
-// These decorators previously watched arbitrary DOM churn, and each refresh
-// performed another full candidate query. Scout already emits explicit render
-// and candidate-updated events, so use those as the single refresh trigger.
 update('extension/scout-card-details.js', s => {
   s = s.replace(/new MutationObserver\([\s\S]*?\.observe\(document\.getElementById\('app'\),\{childList:true,subtree:true\}\)\n/, "document.addEventListener('flippers:scout-rendered',schedule)\ndocument.addEventListener('flippers:candidate-updated',schedule)\n")
   return s
