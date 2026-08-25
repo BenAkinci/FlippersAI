@@ -1,27 +1,21 @@
 import fs from 'node:fs'
 
-function replaceOnce(text,before,after,label){
-  if(text.includes(after)) return text
-  if(!text.includes(before)) throw new Error(`v0.90.2 patch target missing: ${label}`)
-  return text.replace(before,after)
-}
-
 const controllerPath='extension/scout-controller-v090.js'
 let scout=fs.readFileSync(controllerPath,'utf8')
 
-scout=replaceOnce(
-  scout,
-  "filtered=ratedRows.filter(c=>!worthwhile(c)),working=rows.filter(c=>c.scan_status==='working').length||state.active.size;const cells=$$('.scout-summary>div');",
-  "filtered=ratedRows.filter(c=>!worthwhile(c)),working=rows.filter(c=>c.scan_status==='working').length||state.active.size;const workingIds=[...new Set([...rows.filter(c=>c.scan_status==='working').map(c=>String(c.id)),...state.active])];document.body.dataset.v088WorkingIds=JSON.stringify(workingIds);const cells=$$('.scout-summary>div');",
-  'publish Working IDs to stage buckets'
-)
+if(!scout.includes('document.body.dataset.v088WorkingIds=JSON.stringify(workingIds)')){
+  const before="filtered=ratedRows.filter(c=>!worthwhile(c)),working=rows.filter(c=>c.scan_status==='working').length||state.active.size;const cells=$$('.scout-summary>div');"
+  const after="filtered=ratedRows.filter(c=>!worthwhile(c)),working=rows.filter(c=>c.scan_status==='working').length||state.active.size;const workingIds=[...new Set([...rows.filter(c=>c.scan_status==='working').map(c=>String(c.id)),...state.active])];document.body.dataset.v088WorkingIds=JSON.stringify(workingIds);const cells=$$('.scout-summary>div');"
+  if(!scout.includes(before))throw new Error('v0.90.2 patch target missing: publish Working IDs to stage buckets')
+  scout=scout.replace(before,after)
+}
 
-scout=replaceOnce(
-  scout,
-  "async function startNew(){state.runId++;state.status='idle';state.active.clear();state.scout=null;await clearPersisted();location.reload()}",
-  "async function startNew(){state.runId++;state.status='idle';state.active.clear();state.processing=false;state.scout=null;document.body.dataset.v088WorkingIds='[]';await clearPersisted();toast('Starting a new Scout…');await handleScan()}",
-  'Start new scan should immediately scan current marketplace page'
-)
+if(!scout.includes("toast('Starting a new Scout…');await handleScan()")){
+  const before="async function startNew(){state.runId++;state.status='idle';state.active.clear();state.scout=null;await clearPersisted();location.reload()}"
+  const after="async function startNew(){state.runId++;state.status='idle';state.active.clear();state.processing=false;state.scout=null;document.body.dataset.v088WorkingIds='[]';await clearPersisted();toast('Starting a new Scout…');await handleScan()}"
+  if(!scout.includes(before))throw new Error('v0.90.2 patch target missing: Start new scan should immediately scan current marketplace page')
+  scout=scout.replace(before,after)
+}
 
 fs.writeFileSync(controllerPath,scout)
 
