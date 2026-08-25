@@ -25,29 +25,6 @@ scout=replaceOnce(
 
 fs.writeFileSync(controllerPath,scout)
 
-const overlayPath='extension/scout-rating-overlay.js'
-let overlay=fs.readFileSync(overlayPath,'utf8')
-
-if(!overlay.includes('const badgeClass =')){
-  const paintStart=overlay.indexOf('    badge.className =',overlay.indexOf('function paint('))
-  const imageStart=overlay.indexOf('    if (image) {',paintStart)
-  if(paintStart<0||imageStart<0)throw new Error('v0.90.2 patch target missing: marketplace paint block')
-  const replacement=[
-    "    const badgeClass = BADGE+' '+t+(elite(rating)?' elite':'')",
-    "    const badgeHtml = '<span class=\"flippersai-mark-v077\">FlippersAI</span><b>'+scoreOf(rating)+'/100</b>'",
-    "    const badgeTitle = clean(rating.recommendation || 'Rated').replaceAll('_',' ')+' · FlippersAI score '+scoreOf(rating)+'/100'",
-    "    if (badge.className !== badgeClass) badge.className = badgeClass",
-    "    if (badge.innerHTML !== badgeHtml) badge.innerHTML = badgeHtml",
-    "    if (badge.title !== badgeTitle) badge.title = badgeTitle",
-    "",
-    "    root.querySelectorAll(`.${IMAGE}`).forEach(img => { if (!image || img !== image.img) img.classList.remove(IMAGE,'good','warn','bad') })",
-    ""
-  ].join('\n')
-  overlay=overlay.slice(0,paintStart)+replacement+overlay.slice(imageStart)
-}
-
-fs.writeFileSync(overlayPath,overlay)
-
 const manifestPath='extension/manifest.json'
 const manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'))
 manifest.version='0.90.2'
