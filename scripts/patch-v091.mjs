@@ -17,8 +17,6 @@ for(const path of htmlPaths){
   fs.writeFileSync(path,html)
 }
 
-// Workspace tools remain responsible for Shortlist/Saved/Analyse, but may not
-// inject a second, independently-computed Scout summary into the Scan view.
 const toolsPath='extension/workspace-tools-v086.js'
 let tools=fs.readFileSync(toolsPath,'utf8')
 if(!tools.includes('/* v091 scan recovery disabled */')){
@@ -29,23 +27,18 @@ if(!tools.includes('/* v091 scan recovery disabled */')){
   fs.writeFileSync(toolsPath,tools)
 }
 
-// Preserve a rating badge while Depop temporarily rerenders a card and removes
-// its link. Only clear it once the same connected card demonstrably represents
-// a different listing. This avoids remove/recreate flicker.
+// The consolidated overlay no longer removes unmatched badges during ordinary
+// marketplace rerenders. Paint is idempotent and simply updates a recycled card
+// when a new rated listing identity is actually detected.
 const overlayPath='extension/scout-rating-overlay.js'
 let overlay=fs.readFileSync(overlayPath,'utf8')
 if(!overlay.includes('flippersRatingIdentity')){
   overlay=overlay.replace(
-    '    root.classList.add(HOST)\n',
-    "    root.classList.add(HOST)\n    root.dataset.flippersRatingIdentity = listingToken(rating.url || '') || pathKey(rating.url || '')\n"
+    'root.classList.add(HOST);let badge=',
+    "root.classList.add(HOST);root.dataset.flippersRatingIdentity=listingToken(rating.url||'')||pathKey(rating.url||'');let badge="
   )
-  const start=overlay.indexOf('  function clearUnmatched(matched) {')
-  const end=overlay.indexOf('  function apply() {',start)
-  if(start<0||end<0)throw new Error('v0.91 overlay clearUnmatched structure missing')
-  const stableClear=`  function clearUnmatched(matched) {\n    document.querySelectorAll(\`.\${HOST}\`).forEach(root => {\n      if (matched.has(root)) return\n      if (!root.isConnected) return\n      const previous = root.dataset.flippersRatingIdentity || ''\n      let current = ''\n      for (const a of root.querySelectorAll?.('a[href]') || []) {\n        const href = abs(a.getAttribute('href') || a.href || '')\n        const candidate = listingToken(href) || pathKey(href)\n        if (candidate) { current = candidate; break }\n      }\n      // No current identity usually means a transient React rerender. Keep the\n      // badge in place. If the card is clearly recycled to a different listing,\n      // remove the old rating immediately.\n      if (!current || current === previous) return\n      removeNew(root)\n      root.removeAttribute('data-flippers-rating-identity')\n    })\n    document.querySelectorAll(\`.\${IMAGE}\`).forEach(img => {\n      const root = img.closest(\`.\${HOST}\`)\n      if (!root) img.classList.remove(IMAGE,'good','warn','bad')\n    })\n  }\n\n`
-  overlay=overlay.slice(0,start)+stableClear+overlay.slice(end)
 }
-overlay=overlay.replace(/function schedule\(delay = \d+\)/,'function schedule(delay = 80)')
+overlay=overlay.replace(/function schedule\(delay=\d+\)/,'function schedule(delay=80)')
 fs.writeFileSync(overlayPath,overlay)
 
 const manifestPath='extension/manifest.json'
