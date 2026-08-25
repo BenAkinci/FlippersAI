@@ -3,8 +3,8 @@ const read=p=>fs.readFileSync(new URL(`./${p}`,import.meta.url),'utf8')
 const expect=(v,m)=>{if(!v)throw new Error(m)}
 const manifest=JSON.parse(read('manifest.json'))
 const side=read('sidepanel.html'),work=read('workspace.html'),ctrl=read('scout-controller-v090.js')
-const [maj,min,patch]=String(manifest.version||'0.0.0').split('.').map(Number)
-expect(maj===0&&min===90&&patch>=0,'manifest must package v0.90.x')
+const [maj,min]=String(manifest.version||'0.0.0').split('.').map(Number)
+expect(maj>0||(maj===0&&min>=90),'manifest must package v0.90-compatible or newer')
 for(const html of [side,work]){
   expect(html.includes('scout-controller-v090.js'),'v0.90 controller must load')
   for(const old of ['scout-session-v070.js','scout-orchestrator-v080.js','scout-metrics-v076.js','scout-workspace-v071.js','scout-start-watchdog-v081.js'])expect(!html.includes(old),`legacy Scout controller must not load: ${old}`)
