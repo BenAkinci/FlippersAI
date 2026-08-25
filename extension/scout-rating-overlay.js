@@ -171,22 +171,27 @@
       badge.className = BADGE
       root.appendChild(badge)
     }
-    badge.className = `${BADGE} ${t}${elite(rating) ? ' elite' : ''}`
-    badge.innerHTML = `<span class="flippersai-mark-v077">FlippersAI</span><b>${scoreOf(rating)}/100</b>`
-    badge.title = `${clean(rating.recommendation || 'Rated').replaceAll('_',' ')} · FlippersAI score ${scoreOf(rating)}/100`
+    const badgeClass = BADGE+' '+t+(elite(rating)?' elite':'')
+    const badgeHtml = '<span class="flippersai-mark-v077">FlippersAI</span><b>'+scoreOf(rating)+'/100</b>'
+    const badgeTitle = clean(rating.recommendation || 'Rated').replaceAll('_',' ')+' · FlippersAI score '+scoreOf(rating)+'/100'
+    if (badge.className !== badgeClass) badge.className = badgeClass
+    if (badge.innerHTML !== badgeHtml) badge.innerHTML = badgeHtml
+    if (badge.title !== badgeTitle) badge.title = badgeTitle
 
-    root.querySelectorAll(`.${IMAGE}`).forEach(img => img.classList.remove(IMAGE,'good','warn','bad'))
+    root.querySelectorAll(`.${IMAGE}`).forEach(img => { if (!image || img !== image.img) img.classList.remove(IMAGE,'good','warn','bad') })
     if (image) {
       const top = Math.max(6, image.rect.top - cardRect.top + 7)
       const left = Math.max(6, image.rect.left - cardRect.left + 7)
-      badge.style.top = `${Math.round(top)}px`
-      badge.style.left = `${Math.round(left)}px`
-      badge.style.right = 'auto'
-      image.img.classList.add(IMAGE, t)
+      const topPx = `${Math.round(top)}px`
+      const leftPx = `${Math.round(left)}px`
+      if (badge.style.top !== topPx) badge.style.top = topPx
+      if (badge.style.left !== leftPx) badge.style.left = leftPx
+      if (badge.style.right !== 'auto') badge.style.right = 'auto'
+      if (!image.img.classList.contains(IMAGE) || !image.img.classList.contains(t)) image.img.classList.add(IMAGE, t)
     } else {
-      badge.style.top = '8px'
-      badge.style.left = 'auto'
-      badge.style.right = '8px'
+      if (badge.style.top !== '8px') badge.style.top = '8px'
+      if (badge.style.left !== 'auto') badge.style.left = 'auto'
+      if (badge.style.right !== '8px') badge.style.right = '8px'
     }
   }
 

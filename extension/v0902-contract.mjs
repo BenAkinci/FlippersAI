@@ -1,0 +1,18 @@
+import fs from 'node:fs'
+const read=p=>fs.readFileSync(new URL(`./${p}`,import.meta.url),'utf8')
+const expect=(v,m)=>{if(!v)throw new Error(m)}
+const manifest=JSON.parse(read('manifest.json'))
+const scout=read('scout-controller-v090.js')
+const overlay=read('scout-rating-overlay.js')
+expect(manifest.version==='0.90.2','manifest must package v0.90.2')
+expect(scout.includes('document.body.dataset.v088WorkingIds=JSON.stringify(workingIds)'),'Working IDs must be published to the bucket UI')
+expect(scout.includes("document.body.dataset.v088WorkingIds='[]'"),'new scan must clear old Working IDs')
+expect(scout.includes("toast('Starting a new Scout…');await handleScan()"),'Start new scan must immediately scan the current marketplace page')
+expect(!scout.includes("await clearPersisted();location.reload()"),'Start new scan must not return to the default/home view')
+expect(overlay.includes('const badgeClass ='),'rating paint must compute a stable badge state')
+expect(overlay.includes('if (badge.className !== badgeClass)'),'rating class must only mutate when changed')
+expect(overlay.includes('if (badge.innerHTML !== badgeHtml)'),'rating contents must only mutate when changed')
+expect(overlay.includes('if (badge.title !== badgeTitle)'),'rating title must only mutate when changed')
+expect(overlay.includes('if (!image || img !== image.img)'),'current rated image must not be stripped and re-added every repaint')
+expect(overlay.includes('function schedule(delay = 220)'),'existing marketplace repaint throttle must remain protected')
+console.log('v0.90.2 Working + stable overlay + immediate new scan contract passed')
