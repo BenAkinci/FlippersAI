@@ -13,6 +13,7 @@ for(const path of htmlPaths){
   for(const file of scanConflicts){
     html=html.replace(new RegExp(`\\s*<script[^>]+src=["']${file.replaceAll('.','\\.')}["'][^>]*><\\/script>\\s*`,'g'),'\n')
   }
+  if(!html.includes('v091-scan-ui.css'))html=html.replace('</head>','  <link rel="stylesheet" href="v091-scan-ui.css">\n</head>')
   fs.writeFileSync(path,html)
 }
 
