@@ -28,15 +28,13 @@ fs.writeFileSync(controllerPath,scout)
 const overlayPath='extension/scout-rating-overlay.js'
 let overlay=fs.readFileSync(overlayPath,'utf8')
 
-overlay=replaceOnce(
-  overlay,
-  "    badge.className = `${BADGE} ${t}${elite(rating) ? ' elite' : ''}`\n    badge.innerHTML = `<span class=\"flippersai-mark-v077\">FlippersAI</span><b>${scoreOf(rating)}/100</b>`\n    badge.title = `${clean(rating.recommendation || 'Rated').replaceAll('_',' ')} · FlippersAI score ${scoreOf(rating)}/100`\n\n    root.querySelectorAll(`.${IMAGE}`).forEach(img => img.classList.remove(IMAGE,'good','warn','bad'))\n    if (image) {",
-  "    const badgeClass = `${BADGE} ${t}${elite(rating) ? ' elite' : ''}`\n    const badgeHtml = `<span class=\"flippersai-mark-v077\">FlippersAI</span><b>${scoreOf(rating)}/100</b>`\n    const badgeTitle = `${clean(rating.recommendation || 'Rated').replaceAll('_',' ')} · FlippersAI score ${scoreOf(rating)}/100`\n    if (badge.className !== badgeClass) badge.className = badgeClass\n    if (badge.innerHTML !== badgeHtml) badge.innerHTML = badgeHtml\n    if (badge.title !== badgeTitle) badge.title = badgeTitle\n\n    root.querySelectorAll(`.${IMAGE}`).forEach(img => { if (!image || img !== image.img) img.classList.remove(IMAGE,'good','warn','bad') })\n    if (image) {",
-  'idempotent marketplace rating paint'
-)
-
-// v0.89.6 already throttles marketplace repaint work to 220ms. Keep that stable
-// throttling and eliminate self-triggered DOM mutations instead of adding another timer.
+if(!overlay.includes('const badgeClass =')){
+  const paintStart=overlay.indexOf('    badge.className =',overlay.indexOf('function paint('))
+  const imageStart=overlay.indexOf('    if (image) {',paintStart)
+  if(paintStart<0||imageStart<0)throw new Error('v0.90.2 patch target missing: marketplace paint block')
+  const replacement=`    const badgeClass = \`${'${BADGE}'} ${'${t}'}${'${elite(rating) ? \' elite\' : \'\'}'}\`\n    const badgeHtml = \`<span class="flippersai-mark-v077">FlippersAI</span><b>${'${scoreOf(rating)}'}/100</b>\`\n    const badgeTitle = \`${'${clean(rating.recommendation || \'Rated\').replaceAll(\'_\',\' \')}'} · FlippersAI score ${'${scoreOf(rating)}'}/100\`\n    if (badge.className !== badgeClass) badge.className = badgeClass\n    if (badge.innerHTML !== badgeHtml) badge.innerHTML = badgeHtml\n    if (badge.title !== badgeTitle) badge.title = badgeTitle\n\n    root.querySelectorAll(\`.${'${IMAGE}'}\`).forEach(img => { if (!image || img !== image.img) img.classList.remove(IMAGE,'good','warn','bad') })\n`
+  overlay=overlay.slice(0,paintStart)+replacement+overlay.slice(imageStart)
+}
 
 fs.writeFileSync(overlayPath,overlay)
 
