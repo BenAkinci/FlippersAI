@@ -1,0 +1,8 @@
+/* v0.91 Scan ownership presentation guard */
+#v090Loading.completed .scout-loading-spinner{display:none!important;animation:none!important}
+#v090Loading.completed .scout-loading-track i{width:100%!important}
+#v090Loading.paused .scout-loading-spinner{animation-play-state:paused!important;opacity:.6!important}
+#v090Loading.stopped .scout-loading-spinner{display:none!important;animation:none!important}
+.scout-insight{display:flex!important;flex-direction:column!important;gap:4px!important;min-height:58px!important}
+.scout-insight strong,.scout-insight span{display:block!important}
+.scout-summary>div>span,.scout-summary>div>strong{display:block!important}
