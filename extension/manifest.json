@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI — Reseller Workspace",
-  "version": "0.95.0",
-  "description": "FlippersAI reseller workspace with authenticated Research Browser support.",
+  "version": "0.91.0",
+  "description": "FlippersAI v0.91 consolidated reseller workspace with stable Scout and marketplace decision support.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab","sidePanel","scripting","storage","tabs","clipboardWrite"],
   "host_permissions": [
@@ -22,12 +22,12 @@
   "content_scripts": [
     {
       "matches": ["https://*.facebook.com/*","https://*.ebay.com.au/*","https://*.gumtree.com.au/*","https://*.depop.com/*"],
-      "js": ["content-v070.js","marketplace-research-companion-v095.js","scout-collection-content.js","scout-rating-overlay.js","marketplace-trust-overlay-v079.js","marketplace-rating-panel-v083.js"],
+      "js": ["content-v070.js","scout-collection-content.js","scout-rating-overlay.js","marketplace-trust-overlay-v079.js","marketplace-rating-panel-v083.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["https://whattheflip-adz.pages.dev/*","https://*.whattheflip-adz.pages.dev/*"],
-      "js": ["website-analyse-bridge.js","website-research-bridge-v095.js"],
+      "js": ["website-analyse-bridge.js"],
       "run_at": "document_idle"
     }
   ]
