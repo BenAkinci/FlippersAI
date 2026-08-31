@@ -19,9 +19,16 @@
   "background": {"service_worker":"service-worker.js","type":"module"},
   "action": {"default_title":"Open FlippersAI","default_icon":{"16":"icons/icon16.png","32":"icons/icon32.png"}},
   "side_panel": {"default_path":"sidepanel.html"},
-  "content_scripts": [{
-    "matches": ["https://*.facebook.com/*","https://*.ebay.com.au/*","https://*.gumtree.com.au/*","https://*.depop.com/*"],
-    "js": ["content-v070.js","scout-collection-content.js","scout-rating-overlay.js","marketplace-trust-overlay-v079.js","marketplace-rating-panel-v083.js"],
-    "run_at": "document_idle"
-  }]
+  "content_scripts": [
+    {
+      "matches": ["https://*.facebook.com/*","https://*.ebay.com.au/*","https://*.gumtree.com.au/*","https://*.depop.com/*"],
+      "js": ["content-v070.js","scout-collection-content.js","scout-rating-overlay.js","marketplace-trust-overlay-v079.js","marketplace-rating-panel-v083.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://whattheflip-adz.pages.dev/*","https://*.whattheflip-adz.pages.dev/*"],
+      "js": ["website-analyse-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
