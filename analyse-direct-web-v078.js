@@ -1,231 +1,80 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4'
 
-const supabase = createClient(
-  'https://msmpigerejpxepkylkxz.supabase.co',
-  'sb_publishable_PtTF2JaOtkV86zDg_Vf-bw_Vg0nCSpZ'
-)
+const supabase=createClient('https://msmpigerejpxepkylkxz.supabase.co','sb_publishable_PtTF2JaOtkV86zDg_Vf-bw_Vg0nCSpZ')
+const $=(s,r=document)=>r.querySelector(s)
+const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+const money=v=>v===null||v===undefined||v===''||Number.isNaN(Number(v))?'—':new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD',maximumFractionDigits:0}).format(Number(v))
+const pct=v=>v===null||v===undefined||v===''||Number.isNaN(Number(v))?'—':`${Math.round(Number(v))}%`
+const SESSION_KEY='flippers_manual_analysis_v101'
+let analysing=false
+let evidenceFiles=[]
 
-const $ = (s, root=document) => root.querySelector(s)
-const esc = (v='') => String(v).replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]))
-const money = v => v===null||v===undefined||v===''||Number.isNaN(Number(v)) ? '—' : new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD',maximumFractionDigits:0}).format(Number(v))
-const pct = v => v===null||v===undefined||v===''||Number.isNaN(Number(v)) ? '—' : `${Math.round(Number(v))}%`
-const SESSION_KEY = 'flippers_direct_analysis_v078'
-let analysing = false
+function recommendationLabel(v=''){return({strong_buy:'Strong buy',buy:'Buy',negotiate:'Negotiate',verify_first:'Verify first',skip:'Skip',watch:'Watch'})[v]||String(v||'Analysed').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase())}
+function recommendationClass(v=''){if(['strong_buy','buy'].includes(v))return'good';if(['negotiate','watch','verify_first'].includes(v))return'warn';if(v==='skip')return'bad';return'neutral'}
+function authenticityLabel(v=''){return({verified:'Verified',likely_genuine:'Likely genuine',uncertain:'Uncertain',verify_first:'Verify first',high_risk:'High risk',likely_counterfeit:'Likely counterfeit'})[v]||String(v||'Not established').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase())}
+function toDataUrl(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(reader.error||new Error('Could not read image'));reader.readAsDataURL(file)})}
+async function loadContext(){try{const{data,error}=await supabase.functions.invoke('workflow-state',{method:'GET'});if(error||data?.error)return{};return data||{}}catch{return{}}}
+function saveSession(payload){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(payload))}catch{}}
+function loadSession(){try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null')}catch{return null}}
+function clearSession(){try{sessionStorage.removeItem(SESSION_KEY)}catch{}}
 
-function platformFromUrl(url=''){
-  const u=String(url).toLowerCase()
-  if(u.includes('facebook'))return'facebook'
-  if(u.includes('ebay'))return'ebay'
-  if(u.includes('gumtree'))return'gumtree'
-  if(u.includes('depop'))return'depop'
-  return'other'
-}
-
-function recommendationLabel(value=''){
-  const map={strong_buy:'Strong buy',buy:'Buy',negotiate:'Negotiate',verify_first:'Verify first',skip:'Skip',watch:'Watch'}
-  return map[value]||String(value||'Analysed').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase())
-}
-
-function recommendationClass(value=''){
-  if(['strong_buy','buy'].includes(value))return'good'
-  if(['negotiate','watch','verify_first'].includes(value))return'warn'
-  if(value==='skip')return'bad'
-  return'neutral'
-}
-
-function authenticityLabel(value=''){
-  const map={verified:'Verified',likely_genuine:'Likely genuine',uncertain:'Uncertain',verify_first:'Verify first',high_risk:'High risk',likely_counterfeit:'Likely counterfeit'}
-  return map[value]||String(value||'Not established').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase())
-}
-
-function toDataUrl(file){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader()
-    reader.onload=()=>resolve(reader.result)
-    reader.onerror=()=>reject(reader.error||new Error('Could not read image'))
-    reader.readAsDataURL(file)
-  })
-}
-
-async function loadContext(){
-  try{
-    const {data,error}=await supabase.functions.invoke('workflow-state',{method:'GET'})
-    if(error||data?.error)return{}
-    return data||{}
-  }catch{return{}}
-}
-
-function saveSession(payload){
-  try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(payload))}catch{}
-}
-function loadSession(){
-  try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null')}catch{return null}
-}
-function clearSession(){
-  try{sessionStorage.removeItem(SESSION_KEY)}catch{}
-}
-
-function arrayMarkup(title,values=[]){
-  if(!Array.isArray(values)||!values.length)return''
-  const rows=values.slice(0,8).map(v=>`<li>${esc(typeof v==='string'?v:(v?.message||v?.finding||v?.label||JSON.stringify(v)))}</li>`).join('')
-  return `<section class="direct-analysis-section"><span>${esc(title)}</span><ul>${rows}</ul></section>`
-}
-
-function objectRiskMarkup(risks){
-  if(!risks||typeof risks!=='object'||Array.isArray(risks))return''
-  const rows=Object.entries(risks).filter(([,v])=>v!==null&&v!==''&&v!==false).slice(0,8)
-  if(!rows.length)return''
-  return `<section class="direct-analysis-section"><span>RISKS</span><ul>${rows.map(([k,v])=>`<li><strong>${esc(k.replaceAll('_',' '))}:</strong> ${esc(typeof v==='string'?v:JSON.stringify(v))}</li>`).join('')}</ul></section>`
-}
+function arrayMarkup(title,values=[]){if(!Array.isArray(values)||!values.length)return'';return `<section class="direct-analysis-section"><span>${esc(title)}</span><ul>${values.slice(0,10).map(v=>`<li>${esc(typeof v==='string'?v:(v?.message||v?.finding||v?.label||JSON.stringify(v)))}</li>`).join('')}</ul></section>`}
+function objectRiskMarkup(risks){if(!risks||typeof risks!=='object'||Array.isArray(risks))return'';const rows=Object.entries(risks).filter(([,v])=>v!==null&&v!==''&&v!==false).slice(0,10);if(!rows.length)return'';return `<section class="direct-analysis-section"><span>RISKS</span><ul>${rows.map(([k,v])=>`<li><strong>${esc(k.replaceAll('_',' '))}:</strong> ${esc(typeof v==='string'?v:JSON.stringify(v))}</li>`).join('')}</ul></section>`}
+function evidenceMarkup(evidence=[]){if(!Array.isArray(evidence)||!evidence.length)return'';return `<section class="direct-analysis-section"><span>MARKET EVIDENCE</span><ul>${evidence.slice(0,10).map(e=>`<li><strong>${esc(e.marketplace||e.source_title||'Source')}</strong>${e.price!=null?` · ${money(e.price)}`:''}${e.condition_text?` · ${esc(e.condition_text)}`:''}${e.source_url?` · <a href="${esc(e.source_url)}" target="_blank" rel="noopener">source</a>`:''}</li>`).join('')}</ul></section>`}
 
 function resultMarkup(payload){
-  const x=payload.analysis||{}
-  const input=payload.input||{}
-  const rec=x.recommendation||''
-  const ask=x.seller_asking_price??input.askingPrice
-  const success=x.success_potential??x.success_potential_score??null
-  const auth=x.authenticity_status||x.authenticity_assessment?.status||''
-  const authReason=x.authenticity_reason||x.authenticity_assessment?.reason||''
-  const condition=x.condition_assessment||x.condition||x.inferred_condition||''
-  const title=x.identified_name||input.title||'Listing analysis'
-  const resaleRange=(x.resale_low!=null||x.resale_high!=null)?`${money(x.resale_low)} – ${money(x.resale_high)}`:money(x.resale_mid)
-  return `<section class="direct-analysis-result" id="directAnalysisResult">
-    <div class="direct-analysis-result-head">
-      <div><span class="eyebrow">ANALYSIS RESULT</span><h2>${esc(title)}</h2><p>${esc(x.action_summary||x.next_action||'FlippersAI has analysed this listing.')}</p></div>
-      <div class="direct-analysis-score ${recommendationClass(rec)}"><strong>${Math.round(Number(x.overall_score||0))}</strong><span>/100</span><small>${esc(recommendationLabel(rec))}</small></div>
-    </div>
-    <div class="direct-analysis-metrics">
-      <div><span>ASK</span><strong>${money(ask)}</strong></div>
-      <div><span>RESALE</span><strong>${money(x.resale_mid)}</strong><small>${resaleRange}</small></div>
-      <div><span>PROFIT</span><strong>${money(x.expected_profit)}</strong></div>
-      <div><span>ROI</span><strong>${pct(x.expected_roi_percent)}</strong></div>
-      <div><span>SUCCESS POTENTIAL</span><strong>${success==null?'—':`${Math.round(Number(success))}/100`}</strong></div>
-      <div><span>MAX BUY</span><strong>${money(x.max_buy)}</strong></div>
-    </div>
-    <div class="direct-analysis-grid">
-      <section class="direct-analysis-panel"><span>AUTHENTICITY</span><strong>${esc(authenticityLabel(auth))}</strong>${authReason?`<p>${esc(authReason)}</p>`:''}</section>
-      <section class="direct-analysis-panel"><span>CONDITION</span><strong>${esc(typeof condition==='string'&&condition?condition:'Not established')}</strong>${x.condition_reason?`<p>${esc(x.condition_reason)}</p>`:''}</section>
-      <section class="direct-analysis-panel"><span>VALUATION EVIDENCE</span><strong>${pct(x.valuation_confidence)} confidence</strong><p>${esc(x.evidence_summary||'FlippersAI did not return a detailed evidence summary for this analysis.')}</p></section>
-    </div>
-    ${arrayMarkup('WHAT TO DO NEXT',x.action_steps)}
-    ${arrayMarkup('QUESTIONS TO ASK',x.questions_to_ask)}
-    ${arrayMarkup('PHOTO FINDINGS',x.photo_findings)}
-    ${objectRiskMarkup(x.risks)}
-    <div class="direct-analysis-actions"><button type="button" class="button secondary" id="directAnalyseAnother">Analyse another listing</button></div>
-  </section>`
+ const x=payload.analysis||{},input=payload.input||{},rec=x.recommendation||'',ask=x.seller_asking_price??input.askingPrice,success=x.success_potential??x.success_potential_score??null,auth=x.authenticity_status||x.authenticity_assessment?.status||'',authReason=x.authenticity_reason||x.authenticity_assessment?.reason||'',condition=x.condition_assessment||x.condition||x.inferred_condition||'',title=x.identified_name||input.title||'Listing analysis',resaleRange=(x.resale_low!=null||x.resale_high!=null)?`${money(x.resale_low)} – ${money(x.resale_high)}`:money(x.resale_mid)
+ return `<section class="direct-analysis-result" id="directAnalysisResult"><div class="direct-analysis-result-head"><div><span class="eyebrow">ANALYSIS RESULT</span><h2>${esc(title)}</h2><p>${esc(x.action_summary||x.next_action||'FlippersAI has analysed this listing.')}</p></div><div class="direct-analysis-score ${recommendationClass(rec)}"><strong>${Math.round(Number(x.overall_score||0))}</strong><span>/100</span><small>${esc(recommendationLabel(rec))}</small></div></div><div class="direct-analysis-metrics"><div><span>ASK</span><strong>${money(ask)}</strong></div><div><span>RESALE</span><strong>${money(x.resale_mid)}</strong><small>${resaleRange}</small></div><div><span>PROFIT</span><strong>${money(x.expected_profit)}</strong></div><div><span>ROI</span><strong>${pct(x.expected_roi_percent)}</strong></div><div><span>SUCCESS POTENTIAL</span><strong>${success==null?'—':`${Math.round(Number(success))}/100`}</strong></div><div><span>MAX BUY</span><strong>${money(x.max_buy)}</strong></div></div><div class="direct-analysis-grid"><section class="direct-analysis-panel"><span>AUTHENTICITY</span><strong>${esc(authenticityLabel(auth))}</strong>${authReason?`<p>${esc(authReason)}</p>`:''}</section><section class="direct-analysis-panel"><span>CONDITION</span><strong>${esc(typeof condition==='string'&&condition?condition:'Not established')}</strong>${x.condition_reason?`<p>${esc(x.condition_reason)}</p>`:''}</section><section class="direct-analysis-panel"><span>VALUATION EVIDENCE</span><strong>${pct(x.valuation_confidence)} confidence</strong><p>${esc(x.evidence_summary||'No detailed evidence summary was returned.')}</p></section></div>${evidenceMarkup(x.evidence)}${arrayMarkup('WHAT TO DO NEXT',x.action_steps)}${arrayMarkup('QUESTIONS TO ASK',x.questions_to_ask)}${arrayMarkup('PHOTO FINDINGS',x.photo_findings)}${objectRiskMarkup(x.risks)}<div class="direct-analysis-actions"><button type="button" class="button secondary" id="directAnalyseAnother">Analyse another listing</button></div></section>`
 }
 
-function mountResult(payload){
-  const card=$('.analyser-card')
-  if(!card)return
-  $('#directAnalysisResult')?.remove()
-  card.insertAdjacentHTML('afterend',resultMarkup(payload))
-  $('#directAnalyseAnother')?.addEventListener('click',()=>{
-    clearSession()
-    $('#directAnalysisResult')?.remove()
-    const form=$('#newDeal')
-    form?.reset()
-    form?.elements?.url?.focus()
-  })
-}
+function mountResult(payload){const card=$('.analyser-card');if(!card)return;$('#directAnalysisResult')?.remove();card.insertAdjacentHTML('afterend',resultMarkup(payload));$('#directAnalyseAnother')?.addEventListener('click',()=>{clearSession();evidenceFiles=[];$('#directAnalysisResult')?.remove();const form=$('#newDeal');form?.reset();renderTray();form?.elements?.title?.focus()})}
+function mountLoading(){const card=$('.analyser-card');if(!card)return;$('#directAnalysisResult')?.remove();card.insertAdjacentHTML('afterend',`<section class="direct-analysis-result direct-analysis-loading" id="directAnalysisResult" role="status" aria-live="polite"><div class="direct-analysis-spinner"></div><div><strong>Analysing the opportunity…</strong><p>Reading your evidence, identifying the exact item, checking condition and authenticity risk, researching current Australian resale evidence, and calculating profit, ROI and max buy.</p></div></section>`)}
+function mountError(message){const card=$('.analyser-card');if(!card)return;$('#directAnalysisResult')?.remove();card.insertAdjacentHTML('afterend',`<section class="direct-analysis-result direct-analysis-error" id="directAnalysisResult"><strong>Analysis could not be completed</strong><p>${esc(message)}</p></section>`)}
 
-function mountLoading(){
-  const card=$('.analyser-card')
-  if(!card)return
-  $('#directAnalysisResult')?.remove()
-  card.insertAdjacentHTML('afterend',`<section class="direct-analysis-result direct-analysis-loading" id="directAnalysisResult" role="status" aria-live="polite"><div class="direct-analysis-spinner"></div><div><strong>Analysing this listing…</strong><p>Checking identity, authenticity risk, realistic resale value, profit, ROI and what would make the item worth the target resale price.</p></div></section>`)
-}
-
-function mountError(message){
-  const card=$('.analyser-card')
-  if(!card)return
-  $('#directAnalysisResult')?.remove()
-  card.insertAdjacentHTML('afterend',`<section class="direct-analysis-result direct-analysis-error" id="directAnalysisResult"><strong>Analysis could not be completed</strong><p>${esc(message)}</p></section>`)
+function buildListingText(f){
+ const parts=[]
+ const add=(label,name)=>{const v=String(f.get(name)||'').trim();if(v)parts.push(`${label}: ${v}`)}
+ add('Listing description / notes','text');add('Condition stated by seller','condition');add('Size / variant','variant');add('Seller name','seller');add('Seller rating','seller_rating');add('Seller review count','seller_reviews');add('Location','location');add('Fulfilment','fulfilment');add('Included items / accessories','included');add('Known flaws / damage','flaws')
+ return parts.join('\n')
 }
 
 async function runDirectAnalysis(form){
-  if(analysing)return
-  const f=new FormData(form)
-  const url=String(f.get('url')||'').trim()
-  const text=String(f.get('text')||'').trim()
-  const title=String(f.get('title')||'').trim()
-  const askingPrice=f.get('price')!==''&&f.get('price')!==null?Number(f.get('price')):null
-  const files=[...(form.elements.images?.files||[])].slice(0,6)
-  if(!url&&!text&&!title&&!files.length){mountError('Add a listing link, title, description, or at least one screenshot.');return}
-
-  analysing=true
-  const button=$('button[type="submit"],button:not([type])',form)
-  const old=button?.innerHTML
-  if(button){button.disabled=true;button.textContent='Analysing…'}
-  mountLoading()
-  try{
-    const images=[]
-    for(const file of files)images.push(await toDataUrl(file))
-    const context=await loadContext()
-    const profile=context.profile||{}
-    const portfolio=context.portfolio||{}
-    const body={
-      listing_url:url,
-      listing_text:text,
-      platform_fields:{
-        asking_price:Number.isFinite(askingPrice)?askingPrice:null,
-        currency:'AUD',
-        asking_price_verified:Number.isFinite(askingPrice),
-        asking_price_confidence:Number.isFinite(askingPrice)?1:0,
-        listing_title:title||'',
-        listing_location:'',
-        seller_name:'',
-        source_platform:platformFromUrl(url)
-      },
-      user_overrides:{asking_price:Number.isFinite(askingPrice)?askingPrice:null,currency:'AUD'},
-      seller_update:'',
-      prior_analysis_summary:'',
-      bankroll:Number(portfolio.available_cash||0),
-      risk_profile:profile.risk_profile||'conservative',
-      reserve_percent:Number(profile.capital_reserve_percent??30),
-      max_exposure_percent:Number(profile.max_single_item_exposure_percent??20),
-      portfolio_context:portfolio,
-      images
-    }
-    const {data,error}=await supabase.functions.invoke('analyse-listing-v2',{body})
-    if(error||data?.error)throw new Error(error?.message||data?.error||'Analysis failed')
-    const payload={analysis:data.analysis||{},engineVersion:data.engine_version||'',input:{url,text,title,askingPrice,platform:platformFromUrl(url)},analysedAt:new Date().toISOString()}
-    saveSession(payload)
-    mountResult(payload)
-  }catch(error){mountError(error?.message||String(error))}
-  finally{
-    analysing=false
-    if(button){button.disabled=false;button.innerHTML=old||'Analyse listing'}
-  }
+ if(analysing)return
+ const f=new FormData(form),title=String(f.get('title')||'').trim(),askingPrice=f.get('price')!==''&&f.get('price')!==null?Number(f.get('price')):null,platform=String(f.get('platform')||'other'),url=String(f.get('url')||'').trim(),text=buildListingText(f)
+ if(!title&&!text&&!evidenceFiles.length){mountError('Add listing screenshots/photos or enter enough listing details for FlippersAI to identify the item.');return}
+ analysing=true;const button=$('button[type="submit"],button:not([type])',form),old=button?.innerHTML;if(button){button.disabled=true;button.textContent='Analysing…'};mountLoading()
+ try{
+  const images=[];for(const file of evidenceFiles.slice(0,10))images.push(await toDataUrl(file))
+  const context=await loadContext(),profile=context.profile||{},portfolio=context.portfolio||{}
+  const sellerRating=Number(f.get('seller_rating')),sellerReviews=Number(f.get('seller_reviews'))
+  const body={listing_url:url,listing_text:text,platform_fields:{asking_price:Number.isFinite(askingPrice)?askingPrice:null,currency:'AUD',asking_price_verified:Number.isFinite(askingPrice),asking_price_confidence:Number.isFinite(askingPrice)?1:0,listing_title:title,listing_location:String(f.get('location')||''),seller_name:String(f.get('seller')||''),seller_rating:Number.isFinite(sellerRating)?sellerRating:null,seller_review_count:Number.isFinite(sellerReviews)?sellerReviews:null,source_platform:platform,condition:String(f.get('condition')||''),variant:String(f.get('variant')||'')},user_overrides:{asking_price:Number.isFinite(askingPrice)?askingPrice:null,currency:'AUD'},seller_update:'',prior_analysis_summary:'',bankroll:Number(portfolio.available_cash||0),risk_profile:profile.risk_profile||'conservative',reserve_percent:Number(profile.capital_reserve_percent??30),max_exposure_percent:Number(profile.max_single_item_exposure_percent??20),portfolio_context:portfolio,images}
+  const{data,error}=await supabase.functions.invoke('analyse-listing-v2',{body});if(error||data?.error)throw new Error(error?.message||data?.error||'Analysis failed')
+  const payload={analysis:data.analysis||{},engineVersion:data.engine_version||'',input:{url,text,title,askingPrice,platform},analysedAt:new Date().toISOString()};saveSession(payload);mountResult(payload)
+ }catch(error){mountError(error?.message||String(error))}finally{analysing=false;if(button){button.disabled=false;button.innerHTML=old||'Analyse listing'}}
 }
+
+function renderTray(){
+ const tray=$('#manualEvidenceTray');if(!tray)return
+ tray.innerHTML=evidenceFiles.length?evidenceFiles.map((file,i)=>`<div class="manual-evidence-thumb"><img data-preview="${i}" alt="Evidence ${i+1}"><button type="button" data-remove="${i}" aria-label="Remove image">×</button><small>${esc(file.name||`Image ${i+1}`)}</small></div>`).join(''):`<div class="manual-evidence-empty">No images added yet.</div>`
+ evidenceFiles.forEach((file,i)=>{const img=tray.querySelector(`[data-preview="${i}"]`);if(!img)return;const url=URL.createObjectURL(file);img.src=url;img.onload=()=>URL.revokeObjectURL(url)})
+ tray.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{evidenceFiles.splice(Number(b.dataset.remove),1);renderTray();syncFileInput()})
+ const count=$('#manualEvidenceCount');if(count)count.textContent=`${evidenceFiles.length}/10 images`
+}
+function syncFileInput(){const input=$('#manualEvidenceInput');if(!input)return;const dt=new DataTransfer();evidenceFiles.forEach(f=>dt.items.add(f));input.files=dt.files}
+function addFiles(files){for(const file of [...files]){if(!file.type?.startsWith('image/'))continue;if(evidenceFiles.length>=10)break;evidenceFiles.push(file)}syncFileInput();renderTray()}
+
+function manualFormMarkup(){return `<div class="manual-analyse-intro"><strong>Give FlippersAI what the seller shows you.</strong><p>Paste or drag screenshots of the listing page and product photos, or enter the details manually. You do not need to research resale prices yourself.</p></div><label class="manual-upload" id="manualDropZone"><input id="manualEvidenceInput" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple><span><strong>Paste, drag & drop, or choose listing screenshots/photos</strong><small>Include the listing page, product photos, labels/tags and any visible flaws. Cmd/Ctrl+V works anywhere on this page.</small></span><b id="manualEvidenceCount">0/10 images</b></label><div id="manualEvidenceTray" class="manual-evidence-tray"></div><div class="form-grid"><label>Marketplace<select name="platform"><option value="facebook">Facebook Marketplace</option><option value="depop">Depop</option><option value="ebay">eBay</option><option value="gumtree">Gumtree</option><option value="other">Other</option></select></label><label>Listing URL <small>optional reference only</small><input name="url" placeholder="Optional"></label></div><div class="form-grid"><label>Listing title <small>optional if visible in screenshot</small><input name="title" placeholder="Exact title if you know it"></label><label>Asking price (AUD) <small>optional if visible in screenshot</small><input name="price" type="number" min="0" step="0.01" placeholder="e.g. 95"></label></div><div class="form-grid"><label>Condition <small>optional</small><input name="condition" placeholder="New, like new, used, seller wording…"></label><label>Size / variant <small>optional</small><input name="variant" placeholder="Size, colour, storage, model variant…"></label></div><div class="form-grid"><label>Seller name <small>optional</small><input name="seller"></label><label>Location <small>optional</small><input name="location" placeholder="Suburb / city"></label></div><div class="form-grid"><label>Seller rating <small>optional</small><input name="seller_rating" type="number" min="0" max="5" step="0.1"></label><label>Seller review count <small>optional</small><input name="seller_reviews" type="number" min="0" step="1"></label></div><label>Listing description / other visible details <small>optional</small><textarea name="text" placeholder="Paste the seller's description or any details not captured in the screenshots"></textarea></label><div class="form-grid"><label>Included items / accessories <small>optional</small><input name="included" placeholder="Box, charger, receipt, accessories…"></label><label>Known flaws / damage <small>optional</small><input name="flaws" placeholder="Scratches, stains, missing parts…"></label></div><label>Pickup / shipping details <small>optional</small><input name="fulfilment" placeholder="Pickup suburb, postage cost, shipping offered…"></label><button class="button primary large-button">Analyse this opportunity ›</button>`}
+
+function injectStyles(){if($('#manualAnalyseStyles'))return;const s=document.createElement('style');s.id='manualAnalyseStyles';s.textContent=`.manual-analyse-intro{padding:14px 16px;border:1px solid #d8e6ec;border-radius:14px;background:#f7fbfd}.manual-analyse-intro p{margin:5px 0 0;color:#607786}.manual-upload{display:flex;gap:14px;align-items:center;padding:22px;border:2px dashed #bdd5df;border-radius:15px;cursor:pointer;background:#fbfdfe}.manual-upload input{display:none}.manual-upload span{display:flex;flex-direction:column;gap:4px;flex:1}.manual-upload small{color:#6f8490}.manual-upload b{font-size:12px;color:#58717e}.manual-evidence-tray{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}.manual-evidence-empty{grid-column:1/-1;padding:12px;color:#78909c;text-align:center;border:1px dashed #d6e2e7;border-radius:12px}.manual-evidence-thumb{position:relative;border:1px solid #d7e3e8;border-radius:12px;overflow:hidden;background:#fff}.manual-evidence-thumb img{width:100%;height:105px;object-fit:cover;display:block}.manual-evidence-thumb button{position:absolute;right:6px;top:6px;width:26px;height:26px;border:0;border-radius:50%;background:rgba(12,27,36,.85);color:#fff;font-size:19px;line-height:24px;cursor:pointer}.manual-evidence-thumb small{display:block;padding:6px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.manual-upload.dragging{border-color:#f59e0b;background:#fff8e8}`;document.head.appendChild(s)}
 
 function enhanceAnalysePage(){
-  const form=$('#newDeal')
-  if(!form)return
-  const page=$('.page-head')
-  const intro=$('p',page)
-  if(intro)intro.textContent='Paste what you have. FlippersAI will analyse this one listing here and give you the decision before anything becomes a Deal.'
-  const button=$('button[type="submit"],button:not([type])',form)
-  if(button&&!analysing)button.innerHTML='Analyse listing <span aria-hidden="true">›</span>'
-  form.dataset.directAnalyse='v078'
-  if(!$('#directAnalysisResult')){
-    const saved=loadSession()
-    if(saved?.analysis)mountResult(saved)
-  }
+ const form=$('#newDeal');if(!form)return
+ injectStyles()
+ if(form.dataset.manualEvidence!=='v101'){form.dataset.manualEvidence='v101';form.innerHTML=manualFormMarkup();evidenceFiles=[];renderTray();const input=$('#manualEvidenceInput');input?.addEventListener('change',e=>addFiles(e.target.files));const zone=$('#manualDropZone');zone?.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragging')});zone?.addEventListener('dragleave',()=>zone.classList.remove('dragging'));zone?.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragging');addFiles(e.dataTransfer.files)});form.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();runDirectAnalysis(form)},true)}
+ const page=$('.page-head');if(page){const h=$('h1',page),p=$('p',page);if(h)h.textContent='Analyse a reselling opportunity';if(p)p.textContent='Show FlippersAI the listing evidence. It will identify the item, research the market and tell you whether it is worth buying.'}
+ if(!$('#directAnalysisResult')){const saved=loadSession();if(saved?.analysis)mountResult(saved)}
 }
 
-document.addEventListener('submit',event=>{
-  const form=event.target
-  if(!(form instanceof HTMLFormElement)||form.id!=='newDeal')return
-  event.preventDefault()
-  event.stopImmediatePropagation()
-  runDirectAnalysis(form)
-},true)
-
-let timer
-new MutationObserver(()=>{
-  clearTimeout(timer)
-  timer=setTimeout(enhanceAnalysePage,30)
-}).observe(document.getElementById('app'),{childList:true,subtree:true})
-
+document.addEventListener('paste',e=>{if(!$('#newDeal'))return;const files=[...(e.clipboardData?.items||[])].filter(i=>i.kind==='file'&&i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);if(files.length){e.preventDefault();addFiles(files)}})
+let timer;new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(enhanceAnalysePage,30)}).observe(document.getElementById('app'),{childList:true,subtree:true})
 enhanceAnalysePage()
