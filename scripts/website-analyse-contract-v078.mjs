@@ -5,7 +5,8 @@ const js=read('analyse-structured-form-v104.js')
 const index=read('index.html')
 const expect=(value,message)=>{if(!value)throw new Error(message)}
 
-expect(index.includes('analyse-structured-form-v104.js?v=0.104.0'),'structured Analyse v104 script must load on website')
+expect(index.includes('analyse-structured-form-v104.js?v=0.104.1'),'structured Analyse v104.1 script must load on website')
+expect(index.includes('analyse-discount-sync-v1041.js?v=0.104.1'),'discount sync must load on website')
 expect(index.includes('analyse-manual-drop-v102.js'),'drag/drop handler must load on website')
 expect(index.includes('analyse-manual-paste-v103.js'),'paste-photo handler must load on website')
 expect(js.includes('Select marketplace'),'marketplace must start blank instead of defaulting to Facebook')
@@ -21,4 +22,4 @@ expect(js.includes("supabase.functions.invoke('listing-visual-extraction'"),'scr
 expect(js.includes("supabase.functions.invoke('analyse-listing-v2'"),'Analyse must call the analysis engine directly')
 expect(!js.includes("from('opportunities').insert"),'direct Analyse must not create an Opportunity before a decision')
 
-console.log('v0.104 structured Analyse website contract passed')
+console.log('v0.104.1 structured Analyse website contract passed')
