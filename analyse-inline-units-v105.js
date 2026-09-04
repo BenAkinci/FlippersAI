@@ -46,7 +46,6 @@
       currency = 'GBP'
     }
 
-    // Also accept codes touching the number/symbol: 100aud, AUD100, $100AUD.
     for (const code of CURRENCY_CODES) {
       if (new RegExp(code, 'i').test(text)) {
         if (currency && currency !== code) return null
@@ -76,7 +75,7 @@
   function parseSize(value) {
     const raw = String(value || '').trim()
     if (!raw) return null
-    if (SIZE_EXEMPT_RE.test(raw)) return { system: '', size: raw }
+    if (SIZE_EXEMPT_RE.test(raw)) return { system: '', size: raw.toUpperCase() === 'ONE SIZE' ? 'One Size' : raw.toUpperCase() }
 
     let text = raw.toUpperCase().replace(/\u00A0/g, ' ').trim()
     text = text.replace(/\b(?:SHOE\s*)?SIZE\b/g, ' ').replace(/\s+/g, ' ').trim()
@@ -99,16 +98,18 @@
       .replace(/\s+/g, ' ')
       .trim()
 
-    // Keep legitimate size qualifiers such as 9.5, 10 1/2, W9 or M10 intact.
     if (!text || !/[0-9]/.test(text)) return null
-    const size = text.replace(/\s+/g, ' ').trim()
-    return { system, size }
+    return { system, size: text.replace(/\s+/g, ' ').trim() }
   }
 
   function canonicalPrice(parsed) {
     if (!parsed) return ''
     const digits = Number.isInteger(parsed.amount) ? 0 : 2
-    return `${parsed.currency} ${parsed.amount.toLocaleString('en-AU', { minimumFractionDigits: digits, maximumFractionDigits: 2 })}`
+    const amount = parsed.amount.toLocaleString('en-AU', { minimumFractionDigits: digits, maximumFractionDigits: 2 })
+    if (parsed.currency === 'AUD') return `A$${amount}`
+    if (parsed.currency === 'USD') return `US$${amount}`
+    if (parsed.currency === 'GBP') return `£${amount} GBP`
+    return `${parsed.currency} ${amount}`
   }
 
   function canonicalSize(parsed) {
@@ -131,7 +132,7 @@
     else if (control) control.style.display = 'none'
   }
 
-  function syncPriceFromVisible(form, validate = false) {
+  function syncPriceFromVisible(form, validate = false, normalizeVisible = false) {
     const visible = form.querySelector('[name="price_entry"]')
     const price = form.elements?.price
     const currency = form.elements?.currency
@@ -140,6 +141,7 @@
     const raw = visible.value.trim()
     if (!raw) {
       price.value = ''
+      currency.value = ''
       if (validate) setInvalid(wrapper, false)
       return true
     }
@@ -150,12 +152,14 @@
     }
     price.value = String(parsed.amount)
     currency.value = parsed.currency
-    visible.dataset.canonicalValue = canonicalPrice(parsed)
+    const canonical = canonicalPrice(parsed)
+    visible.dataset.canonicalValue = canonical
+    if (normalizeVisible) visible.value = canonical
     setInvalid(wrapper, false)
     return true
   }
 
-  function syncSizeFromVisible(form, validate = false) {
+  function syncSizeFromVisible(form, validate = false, normalizeVisible = false) {
     const visible = form.querySelector('[name="size_entry"]')
     const size = form.elements?.size
     const system = form.elements?.size_system
@@ -175,7 +179,9 @@
     }
     size.value = parsed.size
     system.value = parsed.system
-    visible.dataset.canonicalValue = canonicalSize(parsed)
+    const canonical = canonicalSize(parsed)
+    visible.dataset.canonicalValue = canonical
+    if (normalizeVisible) visible.value = canonical
     setInvalid(wrapper, false)
     return true
   }
@@ -183,7 +189,7 @@
   function syncVisibleFromHidden(form) {
     const p = form.querySelector('[name="price_entry"]')
     const s = form.querySelector('[name="size_entry"]')
-    if (p && p.dataset.userEdited !== 'true') {
+    if (p && p.dataset.userEdited !== 'true' && document.activeElement !== p) {
       const amount = String(form.elements?.price?.value || '').trim()
       const currency = String(form.elements?.currency?.value || '').trim()
       if (amount && currency) {
@@ -192,7 +198,7 @@
         p.dataset.canonicalValue = canonicalPrice(parsed)
       }
     }
-    if (s && s.dataset.userEdited !== 'true') {
+    if (s && s.dataset.userEdited !== 'true' && document.activeElement !== s) {
       const size = String(form.elements?.size?.value || '').trim()
       const system = String(form.elements?.size_system?.value || '').trim()
       if (size) {
@@ -239,10 +245,20 @@
 
     const priceEntry = form.querySelector('[name="price_entry"]')
     const sizeEntry = form.querySelector('[name="size_entry"]')
-    priceEntry?.addEventListener('input', () => { priceEntry.dataset.userEdited = 'true'; syncPriceFromVisible(form, false); setInvalid(priceEntry.closest('.inline-unit-field'), false) })
-    priceEntry?.addEventListener('blur', () => syncPriceFromVisible(form, true))
-    sizeEntry?.addEventListener('input', () => { sizeEntry.dataset.userEdited = 'true'; syncSizeFromVisible(form, false); setInvalid(sizeEntry.closest('.inline-unit-field'), false) })
-    sizeEntry?.addEventListener('blur', () => syncSizeFromVisible(form, true))
+
+    priceEntry?.addEventListener('input', () => {
+      priceEntry.dataset.userEdited = 'true'
+      syncPriceFromVisible(form, false, false)
+      setInvalid(priceEntry.closest('.inline-unit-field'), false)
+    })
+    priceEntry?.addEventListener('blur', () => syncPriceFromVisible(form, true, true))
+
+    sizeEntry?.addEventListener('input', () => {
+      sizeEntry.dataset.userEdited = 'true'
+      syncSizeFromVisible(form, false, false)
+      setInvalid(sizeEntry.closest('.inline-unit-field'), false)
+    })
+    sizeEntry?.addEventListener('blur', () => syncSizeFromVisible(form, true, true))
 
     syncVisibleFromHidden(form)
   }
@@ -250,22 +266,30 @@
   document.addEventListener('submit', event => {
     const form = event.target
     if (!(form instanceof HTMLFormElement) || form.id !== 'newDeal' || form.dataset.inlineUnits !== 'v105') return
-    const priceOk = syncPriceFromVisible(form, true)
-    const sizeOk = syncSizeFromVisible(form, true)
+    const priceOk = syncPriceFromVisible(form, true, true)
+    const sizeOk = syncSizeFromVisible(form, true, true)
     if (!priceOk || !sizeOk) {
       event.preventDefault()
       event.stopImmediatePropagation()
-      const first = form.querySelector('.inline-unit-field.invalid input')
-      first?.focus()
+      // Validation is deliberately non-focus-stealing. Show the error and scroll it into view,
+      // but never force the user's cursor back into a field.
+      const first = form.querySelector('.inline-unit-field.invalid')
       first?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, true)
 
   let timer
-  new MutationObserver(() => {
-    clearTimeout(timer)
-    timer = setTimeout(() => { enhance(); const form = document.getElementById('newDeal'); if (form?.dataset.inlineUnits === 'v105') syncVisibleFromHidden(form) }, 40)
-  }).observe(document.getElementById('app'), { childList: true, subtree: true })
+  const app = document.getElementById('app')
+  if (app) {
+    new MutationObserver(() => {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        enhance()
+        const form = document.getElementById('newDeal')
+        if (form?.dataset.inlineUnits === 'v105') syncVisibleFromHidden(form)
+      }, 40)
+    }).observe(app, { childList: true, subtree: true })
+  }
 
   setInterval(() => {
     const form = document.getElementById('newDeal')
