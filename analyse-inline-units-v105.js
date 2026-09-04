@@ -1,8 +1,7 @@
 (() => {
-  const PRICE_RE = /^\s*(AUD|USD|GBP)\s*\$?\s*([0-9]+(?:[.,][0-9]{1,2})?)\s*$/i
-  const PRICE_SUFFIX_RE = /^\s*\$?\s*([0-9]+(?:[.,][0-9]{1,2})?)\s*(AUD|USD|GBP)\s*$/i
-  const SIZE_RE = /^\s*(US|UK|EU|AU)\s*[-:]?\s*([A-Za-z0-9][A-Za-z0-9 .\/-]*)\s*$/i
   const SIZE_EXEMPT_RE = /^(?:OS|ONE\s*SIZE|N\/?A|NOT\s*APPLICABLE)$/i
+  const CURRENCY_CODES = ['AUD', 'USD', 'GBP']
+  const SIZE_SYSTEMS = ['US', 'UK', 'EU', 'AU']
 
   function ensureStyles() {
     if (document.getElementById('inlineUnitStyles')) return
@@ -19,22 +18,102 @@
     document.head.appendChild(style)
   }
 
+  function parseAmount(text) {
+    const cleaned = String(text || '').trim().replace(/\s+/g, '')
+    if (!cleaned) return null
+    if (!/^\d[\d,.]*$/.test(cleaned)) return null
+    let normalized = cleaned
+    if (cleaned.includes(',') && cleaned.includes('.')) normalized = cleaned.replace(/,/g, '')
+    else if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(cleaned)) normalized = cleaned.replace(/,/g, '')
+    else if (/^\d+,\d{1,2}$/.test(cleaned)) normalized = cleaned.replace(',', '.')
+    const amount = Number(normalized)
+    return Number.isFinite(amount) ? amount : null
+  }
+
   function parsePrice(value) {
-    const text = String(value || '').trim().toUpperCase()
-    if (!text) return null
-    let m = text.match(PRICE_RE)
-    if (m) return { currency: m[1].toUpperCase(), amount: Number(m[2].replace(',', '.')) }
-    m = text.match(PRICE_SUFFIX_RE)
-    if (m) return { currency: m[2].toUpperCase(), amount: Number(m[1].replace(',', '.')) }
-    return null
+    const raw = String(value || '').trim()
+    if (!raw) return null
+    let text = raw.toUpperCase().replace(/\u00A0/g, ' ').trim()
+
+    let currency = null
+    if (/\bAUD\b/i.test(text) || /(?:^|\s)A\$(?=\s*\d)/i.test(text) || /^A\$\s*\d/i.test(text)) currency = 'AUD'
+    if (/\bUSD\b/i.test(text) || /(?:^|\s)US\$(?=\s*\d)/i.test(text) || /^US\$\s*\d/i.test(text)) {
+      if (currency && currency !== 'USD') return null
+      currency = 'USD'
+    }
+    if (/\bGBP\b/i.test(text) || /£/.test(text)) {
+      if (currency && currency !== 'GBP') return null
+      currency = 'GBP'
+    }
+
+    // Also accept codes touching the number/symbol: 100aud, AUD100, $100AUD.
+    for (const code of CURRENCY_CODES) {
+      if (new RegExp(code, 'i').test(text)) {
+        if (currency && currency !== code) return null
+        currency = code
+      }
+    }
+
+    // A bare $ is intentionally ambiguous and must not be guessed.
+    if (!currency && /\$/.test(text)) return null
+    if (!currency) return null
+
+    text = text
+      .replace(/AUD|USD|GBP/gi, ' ')
+      .replace(/US\$/gi, ' ')
+      .replace(/A\$/gi, ' ')
+      .replace(/[£$]/g, ' ')
+      .replace(/\b(?:PRICE|COST|ASK|ASKING)\b/gi, ' ')
+      .trim()
+
+    const numberMatch = text.match(/\d[\d,.]*/)
+    if (!numberMatch) return null
+    const amount = parseAmount(numberMatch[0])
+    if (amount === null || amount < 0) return null
+    return { currency, amount }
   }
 
   function parseSize(value) {
-    const text = String(value || '').trim()
-    if (!text) return null
-    if (SIZE_EXEMPT_RE.test(text)) return { system: '', size: text }
-    const m = text.match(SIZE_RE)
-    return m ? { system: m[1].toUpperCase(), size: m[2].trim() } : null
+    const raw = String(value || '').trim()
+    if (!raw) return null
+    if (SIZE_EXEMPT_RE.test(raw)) return { system: '', size: raw }
+
+    let text = raw.toUpperCase().replace(/\u00A0/g, ' ').trim()
+    text = text.replace(/\b(?:SHOE\s*)?SIZE\b/g, ' ').replace(/\s+/g, ' ').trim()
+
+    let system = null
+    for (const code of SIZE_SYSTEMS) {
+      const touchingStart = new RegExp(`^${code}(?=\\d|\\s|[-:])`, 'i')
+      const touchingEnd = new RegExp(`(?<=\\d)${code}$`, 'i')
+      const separated = new RegExp(`(?:^|\\s)${code}(?:$|\\s)`, 'i')
+      if (touchingStart.test(text) || touchingEnd.test(text) || separated.test(text)) {
+        if (system && system !== code) return null
+        system = code
+      }
+    }
+    if (!system) return null
+
+    text = text
+      .replace(new RegExp(system, 'ig'), ' ')
+      .replace(/[-:]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    // Keep legitimate size qualifiers such as 9.5, 10 1/2, W9 or M10 intact.
+    if (!text || !/[0-9]/.test(text)) return null
+    const size = text.replace(/\s+/g, ' ').trim()
+    return { system, size }
+  }
+
+  function canonicalPrice(parsed) {
+    if (!parsed) return ''
+    const digits = Number.isInteger(parsed.amount) ? 0 : 2
+    return `${parsed.currency} ${parsed.amount.toLocaleString('en-AU', { minimumFractionDigits: digits, maximumFractionDigits: 2 })}`
+  }
+
+  function canonicalSize(parsed) {
+    if (!parsed) return ''
+    return parsed.system ? `${parsed.system} ${parsed.size}` : parsed.size
   }
 
   function setInvalid(wrapper, invalid, message = '') {
@@ -65,12 +144,13 @@
       return true
     }
     const parsed = parsePrice(raw)
-    if (!parsed || !Number.isFinite(parsed.amount) || parsed.amount < 0) {
-      if (validate) setInvalid(wrapper, true, 'Include the currency with the price, e.g. AUD 100, USD 85 or GBP 70.')
+    if (!parsed) {
+      if (validate) setInvalid(wrapper, true, 'Include an unambiguous currency, e.g. AUD 100, $100 AUD, USD100 or £70. A bare $ is not enough.')
       return false
     }
     price.value = String(parsed.amount)
     currency.value = parsed.currency
+    visible.dataset.canonicalValue = canonicalPrice(parsed)
     setInvalid(wrapper, false)
     return true
   }
@@ -90,11 +170,12 @@
     }
     const parsed = parseSize(raw)
     if (!parsed) {
-      if (validate) setInvalid(wrapper, true, 'Include the size system, e.g. US 10, UK 9, EU 44 or AU 10.')
+      if (validate) setInvalid(wrapper, true, 'Include the size system, e.g. US 9, 9US, size UK 9 or EU44.')
       return false
     }
     size.value = parsed.size
     system.value = parsed.system
+    visible.dataset.canonicalValue = canonicalSize(parsed)
     setInvalid(wrapper, false)
     return true
   }
@@ -105,12 +186,20 @@
     if (p && p.dataset.userEdited !== 'true') {
       const amount = String(form.elements?.price?.value || '').trim()
       const currency = String(form.elements?.currency?.value || '').trim()
-      if (amount && currency) p.value = `${currency} ${amount}`
+      if (amount && currency) {
+        const parsed = { currency, amount: Number(amount) }
+        p.value = canonicalPrice(parsed)
+        p.dataset.canonicalValue = canonicalPrice(parsed)
+      }
     }
     if (s && s.dataset.userEdited !== 'true') {
       const size = String(form.elements?.size?.value || '').trim()
       const system = String(form.elements?.size_system?.value || '').trim()
-      if (size) s.value = system ? `${system} ${size}` : size
+      if (size) {
+        const parsed = { system, size }
+        s.value = canonicalSize(parsed)
+        s.dataset.canonicalValue = canonicalSize(parsed)
+      }
     }
   }
 
@@ -131,7 +220,7 @@
     if (priceLabel && priceParent) {
       const wrapper = document.createElement('label')
       wrapper.className = 'inline-unit-field'
-      wrapper.innerHTML = `<span>Current price</span><input name="price_entry" inputmode="decimal" autocomplete="off" placeholder="e.g. AUD 100, USD 85, GBP 70"><small class="field-help">Include the currency code in the same box.</small><small class="field-error">Include the currency with the price.</small>`
+      wrapper.innerHTML = `<span>Current price</span><input name="price_entry" inputmode="decimal" autocomplete="off" placeholder="e.g. AUD 100, $100 AUD, USD85"><small class="field-help">Type the currency and amount together in whatever clear format is natural.</small><small class="field-error">Include an unambiguous currency with the price.</small>`
       priceParent.insertBefore(wrapper, priceLabel)
     }
     hideOriginalControl(price)
@@ -142,7 +231,7 @@
     if (sizeLabel && sizeParent) {
       const wrapper = document.createElement('label')
       wrapper.className = 'inline-unit-field'
-      wrapper.innerHTML = `<span>Size</span><input name="size_entry" autocomplete="off" placeholder="e.g. US 10, UK 9, EU 44, AU 10"><small class="field-help">Include the size system in the same box.</small><small class="field-error">Include the size system.</small>`
+      wrapper.innerHTML = `<span>Size</span><input name="size_entry" autocomplete="off" placeholder="e.g. US 9, 9US, size UK 9, EU44"><small class="field-help">Type the size system and size together in whatever clear format is natural.</small><small class="field-error">Include the size system.</small>`
       sizeParent.insertBefore(wrapper, sizeLabel)
     }
     hideOriginalControl(size)
