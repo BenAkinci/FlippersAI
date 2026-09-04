@@ -2,7 +2,7 @@
   const SIZE_EXEMPT_RE = /^(?:OS|ONE\s*SIZE|N\/?A|NOT\s*APPLICABLE)$/i
   const CURRENCY_CODES = ['AUD', 'USD', 'GBP']
   const SIZE_SYSTEMS = ['US', 'UK', 'EU', 'AU']
-  const APPAREL_SIZE_RE = /^(?:XXS|XS|S|M|L|XL|XXL|XXXL|[2-6]XL)$/i
+  const APPAREL_SIZE_RE = /^(?:XXS|XS|S|M|L|XL|XXL|XXXL|[2-6]XL|EXTRA\s+SMALL|SMALL|MEDIUM|LARGE|EXTRA\s+LARGE)$/i
   const GARMENT_MEASURE_RE = /^(?:W?\d{2,3}(?:\s*[xX]\s*\d{2,3})?|W\d{2,3}\s*L\d{2,3}|\d{2,3}W(?:\s*\d{2,3}L)?|\d{2,3}[RLS])$/i
   const FOOTWEAR_RE = /\b(?:shoe|shoes|sneaker|sneakers|trainer|trainers|boot|boots|loafer|loafers|heel|heels|sandal|sandals|slides|air max|air force|jordan|yeezy|dunk|gazelle|samba|new balance|asics|gel-|pegasus|vomero|salomon)\b/i
 
@@ -72,6 +72,11 @@
   function cleanGenericSize(raw) {
     let text = String(raw || '').trim().replace(/\u00A0/g, ' ').replace(/\s+/g, ' ')
     text = text.replace(/^\s*(?:item\s*)?size\s*[:\-]?\s*/i, '')
+    if (/^EXTRA\s+SMALL$/i.test(text)) return 'XS'
+    if (/^SMALL$/i.test(text)) return 'S'
+    if (/^MEDIUM$/i.test(text)) return 'M'
+    if (/^LARGE$/i.test(text)) return 'L'
+    if (/^EXTRA\s+LARGE$/i.test(text)) return 'XL'
     if (APPAREL_SIZE_RE.test(text)) return text.toUpperCase()
     if (GARMENT_MEASURE_RE.test(text)) return text.toUpperCase().replace(/\s+/g, ' ')
     if (/^(?:ONE\s*SIZE|OS)$/i.test(text)) return 'One Size'
@@ -108,10 +113,10 @@
     if (!generic) return null
     if (APPAREL_SIZE_RE.test(generic) || GARMENT_MEASURE_RE.test(generic) || /^(?:One Size|N\/A)$/.test(generic)) return { system: '', size: generic }
 
-    // Numeric footwear sizes must include the system because US/UK/EU/AU can materially change valuation.
+    // Numeric footwear sizes must include a system because US/UK/EU/AU can materially change valuation.
     if (isFootwearContext(form) && /^\d+(?:\.\d+)?(?:\s*1\/2)?$/i.test(generic)) return null
 
-    // Non-footwear items can use a relevant free-form size/variant, or leave this field blank.
+    // For non-footwear, size is optional and can be a relevant free-form variant (book edition, card set, device capacity, etc.).
     return { system: '', size: generic }
   }
 
@@ -177,7 +182,7 @@
     if (!raw) { size.value = ''; system.value = ''; if (validate) setInvalid(wrapper, false); return true }
     const parsed = parseSize(raw, form)
     if (!parsed) {
-      if (validate) setInvalid(wrapper, true, 'For footwear, include the sizing system, e.g. US 9, UK 8 or EU 42. Clothing sizes such as L, XL or W32 L30 are accepted as-is.')
+      if (validate) setInvalid(wrapper, true, 'For footwear, include the sizing system, e.g. US 9, UK 8 or EU 42. Clothing sizes such as L, XL or W32 L30 are accepted.')
       return false
     }
     size.value = parsed.size
@@ -205,10 +210,10 @@
   function enhance() {
     ensureStyles()
     const form = document.getElementById('newDeal')
-    if (!form || form.dataset.structured !== 'v104' || form.dataset.inlineUnits === 'v105') return
+    if (!form || form.dataset.structured !== 'v104' || form.dataset.inlineUnits === 'v110') return
     const price = form.elements?.price, currency = form.elements?.currency, size = form.elements?.size, sizeSystem = form.elements?.size_system
     if (!price || !currency || !size || !sizeSystem) return
-    form.dataset.inlineUnits = 'v105'
+    form.dataset.inlineUnits = 'v110'
 
     const priceLabel = price.closest('label'), priceParent = priceLabel?.parentElement
     if (priceLabel && priceParent) {
@@ -223,7 +228,7 @@
     if (sizeLabel && sizeParent) {
       const wrapper = document.createElement('label')
       wrapper.className = 'inline-unit-field'
-      wrapper.innerHTML = `<span>Size / variant</span><input name="size_entry" autocomplete="off" placeholder="e.g. L, XL, W32 L30, US 9, EU 42"><small class="field-help">Use whatever size or variant is relevant to the item. Footwear numeric sizes need a sizing system.</small><small class="field-error">Check the size / variant format.</small>`
+      wrapper.innerHTML = `<span>Size / variant</span><input name="size_entry" autocomplete="off" placeholder="e.g. L, XL, W32 L30, US 9, EU 42"><small class="field-help">Use the size or variant relevant to this item. Leave blank when it does not apply.</small><small class="field-error">Check the size / variant format.</small>`
       sizeParent.insertBefore(wrapper, sizeLabel)
     }
     hideOriginalControl(size); hideOriginalControl(sizeSystem)
@@ -238,7 +243,7 @@
 
   document.addEventListener('submit', event => {
     const form = event.target
-    if (!(form instanceof HTMLFormElement) || form.id !== 'newDeal' || form.dataset.inlineUnits !== 'v105') return
+    if (!(form instanceof HTMLFormElement) || form.id !== 'newDeal' || form.dataset.inlineUnits !== 'v110') return
     const priceOk = syncPriceFromVisible(form, true, true), sizeOk = syncSizeFromVisible(form, true, true)
     if (!priceOk || !sizeOk) {
       event.preventDefault(); event.stopImmediatePropagation()
@@ -248,7 +253,7 @@
 
   let timer
   const app = document.getElementById('app')
-  if (app) new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(() => { enhance(); const form = document.getElementById('newDeal'); if (form?.dataset.inlineUnits === 'v105') syncVisibleFromHidden(form) }, 40) }).observe(app, { childList: true, subtree: true })
-  setInterval(() => { const form = document.getElementById('newDeal'); if (form?.dataset.inlineUnits === 'v105') syncVisibleFromHidden(form) }, 600)
+  if (app) new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(() => { enhance(); const form = document.getElementById('newDeal'); if (form?.dataset.inlineUnits === 'v110') syncVisibleFromHidden(form) }, 40) }).observe(app, { childList: true, subtree: true })
+  setInterval(() => { const form = document.getElementById('newDeal'); if (form?.dataset.inlineUnits === 'v110') syncVisibleFromHidden(form) }, 600)
   enhance()
 })()
