@@ -65,7 +65,7 @@ async function extractFromImages(){
   const x=data.extraction||{}
   setField('platform',({Facebook:'facebook','Facebook Marketplace':'facebook',Depop:'depop',eBay:'ebay',Gumtree:'gumtree',Vinted:'vinted'})[x.marketplace]||String(x.marketplace||'').toLowerCase())
   setField('title',x.listing_title);setField('brand',x.brand);setField('model',x.model);setField('colour',x.colour);setField('size',x.size);setField('size_system',x.size_system)
-  setField('price',x.asking_price);setField('original_price',x.original_price);setField('currency',x.currency);setField('discounted',x.is_discounted);setField('discount_note',x.discount_text)
+  setField('price',x.asking_price);setField('original_price',x.original_price);setField('currency',x.currency);setField('discounted',x.is_discounted);setField('discount_note',x.discount_text);setField('shipping_cost',x.shipping_cost)
   setField('seller',x.seller_name);setField('seller_rating',x.seller_rating);setField('seller_reviews',x.seller_review_count);setField('location',x.listing_location);setField('condition',x.condition);setField('description',x.description);setField('extra_info',x.extra_info)
   const details=Array.isArray(x.visible_item_details)?x.visible_item_details.join('; '):'';if(details){const extra=$('[name="extra_info"]');if(extra&&!extra.value) setField('extra_info',details)}
   if(status){status.className='auto-status good';status.textContent=`Screenshots read. FlippersAI filled the visible fields${x.extraction_confidence!=null?` (${Math.round(Number(x.extraction_confidence)*100)}% extraction confidence)`:''}. Review and edit anything that looks wrong.`}
