@@ -103,12 +103,23 @@
     const isFootwear=FOOTWEAR.test(context)
     const clearlyNonSized=CLEAR_NON_SIZED.test(context)
 
-    const names=['brand','model','colour','condition','description','size','seller_rating','seller_reviews','seller_items_sold','location','included','flaws','fulfilment']
+    // Clear both the hidden structured size field and the visible smart size field.
+    // A prior warning must never linger once a valid value such as L is present.
+    const names=['brand','model','colour','condition','description','size','size_entry','seller_rating','seller_reviews','seller_items_sold','location','included','flaws','fulfilment']
     names.forEach(n=>clearState(form,n))
 
-    if(!String(form.elements?.size?.value||'').trim() && !String(form.elements?.size_entry?.value||'').trim()){
+    const rawSize=String(form.elements?.size?.value||'').trim()
+    const visibleSize=String(form.elements?.size_entry?.value||'').trim()
+    const hasSize=Boolean(rawSize||visibleSize)
+
+    if(!hasSize){
       if(clearlyNonSized && !isApparel && !isFootwear) setState(form,form.elements?.size_entry?'size_entry':'size','na','N/A for this type of item.')
-      else if(isApparel||isFootwear) setState(form,form.elements?.size_entry?'size_entry':'size','missing','Size matters for matching the right resale market and still needs confirmation.')
+      else if(isApparel) setState(form,form.elements?.size_entry?'size_entry':'size','missing','Size still needs confirmation.')
+      else if(isFootwear) setState(form,form.elements?.size_entry?'size_entry':'size','missing','Footwear size and sizing system still need confirmation.')
+    } else {
+      // Apparel alpha/garment sizes are complete as written: L is L, XL is XL, W32 is W32.
+      clearState(form,'size_entry')
+      clearState(form,'size')
     }
 
     for(const name of IMPORTANT){
@@ -136,8 +147,8 @@
   }
 
   function bind(form){
-    if(!form||form.dataset.completeness==='v113') return
-    form.dataset.completeness='v113'
+    if(!form||form.dataset.completeness==='v120') return
+    form.dataset.completeness='v120'
     addItemsSold(form)
 
     form.elements?.seller_items_sold?.addEventListener('input',()=>{
@@ -161,7 +172,11 @@
       const el=e.target
       if(!(el instanceof HTMLInputElement||el instanceof HTMLTextAreaElement||el instanceof HTMLSelectElement)) return
       if(el.name) clearState(form,el.name)
+      if(el.name==='size_entry'||el.name==='size') applyCompleteness(form)
     })
+
+    // Auto-extraction changes do not always emit a normal input event.
+    document.addEventListener('flippers:listing-extracted',()=>applyCompleteness(form))
   }
 
   function enhance(){
