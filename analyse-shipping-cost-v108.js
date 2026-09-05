@@ -18,21 +18,52 @@
     return [...form.querySelectorAll('.field-section')].find(section=>section.querySelector(':scope > h3')?.textContent.trim()==='Price')||null
   }
 
+  function ensureShippingContext(form){
+    let context=form.querySelector('input[data-shipping-context="true"]')
+    if(!context){
+      context=document.createElement('input')
+      context.type='hidden'
+      context.name='fulfilment'
+      context.dataset.shippingContext='true'
+      form.appendChild(context)
+    }
+    return context
+  }
+
+  function syncShippingContext(form){
+    const input=form.querySelector('[name="shipping_cost"]')
+    const context=ensureShippingContext(form)
+    const raw=String(input?.value||'').trim()
+    if(raw===''){context.value='';return}
+    const amount=Number(raw)
+    if(!Number.isFinite(amount)||amount<0){context.value='';return}
+    const currency=String(form.elements?.currency?.value||'').trim().toUpperCase()||'AUD'
+    context.value=`FlippersAI acquisition shipping cost: ${amount.toFixed(2)} ${currency}`
+  }
+
   function mount(){
     ensureStyles()
     const form=document.getElementById('newDeal')
-    if(!form||form.dataset.shippingCost==='v108') return
+    if(!form) return
     const section=priceSection(form)
     if(!section) return
-    form.dataset.shippingCost='v108'
-    const label=document.createElement('label')
-    label.className='shipping-cost-field'
-    label.innerHTML='<span>Shipping cost</span><input name="shipping_cost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"><small>Same currency as the listing price. Enter 0 for free shipping or pickup.</small><small class="shipping-cost-error">Enter the shipping cost, or 0 for free shipping / pickup.</small>'
-    const disclosure=section.querySelector('#discountDisclosure')
-    if(disclosure) section.insertBefore(label,disclosure)
-    else section.appendChild(label)
-    const input=label.querySelector('input')
-    input?.addEventListener('input',()=>label.classList.remove('invalid'))
+    ensureShippingContext(form)
+    if(form.dataset.shippingCost==='v120'){syncShippingContext(form);return}
+    form.dataset.shippingCost='v120'
+    const existing=form.querySelector('.shipping-cost-field')
+    if(!existing){
+      const label=document.createElement('label')
+      label.className='shipping-cost-field'
+      label.innerHTML='<span>Shipping cost</span><input name="shipping_cost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"><small>Same currency as the listing price. Enter 0 for free shipping or pickup.</small><small class="shipping-cost-error">Enter the shipping cost, or 0 for free shipping / pickup.</small>'
+      const disclosure=section.querySelector('#discountDisclosure')
+      if(disclosure) section.insertBefore(label,disclosure)
+      else section.appendChild(label)
+    }
+    const input=form.querySelector('[name="shipping_cost"]')
+    input?.addEventListener('input',()=>{input.closest('.shipping-cost-field')?.classList.remove('invalid');syncShippingContext(form)})
+    input?.addEventListener('change',()=>syncShippingContext(form))
+    form.elements?.currency?.addEventListener?.('change',()=>syncShippingContext(form))
+    syncShippingContext(form)
   }
 
   function shippingValue(form){
@@ -56,15 +87,8 @@
       field?.scrollIntoView({behavior:'smooth',block:'center'})
       return
     }
-
     field?.classList.remove('invalid')
-    const currency=String(form.elements?.currency?.value||'').trim().toUpperCase()
-    const extra=form.elements?.extra_info
-    if(!extra) return
-    const original=extra.value
-    const marker=`FlippersAI acquisition shipping cost: ${parsed.amount.toFixed(2)} ${currency||'UNKNOWN'}`
-    extra.value=[original.trim(),marker].filter(Boolean).join('\n')
-    queueMicrotask(()=>{ extra.value=original })
+    syncShippingContext(form)
   },true)
 
   let timer
