@@ -57,7 +57,6 @@
         --fa-line-tight:1.15;--fa-line-body:1.5;
       }
 
-      /* Consistent page hierarchy */
       main.content{padding-top:var(--fa-space-8);padding-bottom:88px}
       main.content>.page-head{margin-bottom:var(--fa-space-7)!important;align-items:flex-end}
       main.content .page-head h1{font-size:var(--fa-type-page)!important;line-height:var(--fa-line-tight)!important;letter-spacing:-.04em!important;margin:0 0 10px!important}
@@ -69,17 +68,14 @@
       main.content .section-heading>span{font-size:13px!important;line-height:1.4!important}
       main.content .button-row,main.content .quick-actions{gap:var(--fa-space-2)}
 
-      /* Card/title hierarchy */
       main.content .card h2,main.content .focused-card h2,main.content .deal-card h2{font-size:22px;line-height:1.25;margin:0 0 var(--fa-space-2)}
       main.content .card h3,main.content .focused-card h3,main.content .deal-card h3,main.content .next-card h3{font-size:var(--fa-type-card);line-height:1.3;margin:0 0 var(--fa-space-1)}
       main.content .card p,main.content .focused-card p,main.content .deal-card p,main.content .next-card p{font-size:var(--fa-type-body);line-height:var(--fa-line-body)}
 
-      /* Form typography */
       main.content label{font-size:var(--fa-type-label)!important;line-height:1.35!important;font-weight:650!important}
       main.content label small,.inline-unit-field .field-help,.inline-unit-field .field-error{font-size:var(--fa-type-help)!important;line-height:1.4!important}
       main.content input,main.content select,main.content textarea{font-size:15px!important;line-height:1.4!important}
 
-      /* Analyse form rhythm */
       #newDeal{display:flex!important;flex-direction:column!important;gap:var(--fa-space-6)!important}
       #newDeal>.manual-analyse-intro,#newDeal>.manual-upload,#newDeal>.manual-evidence-tray,#newDeal>.auto-status,#newDeal>.field-section,#newDeal>.button{margin:0!important}
       #newDeal .manual-analyse-intro{padding:20px 22px!important}
@@ -101,12 +97,10 @@
       #newDeal textarea{min-height:138px}
       #newDeal .large-button{margin-top:2px!important;min-height:52px;font-size:15px}
 
-      /* Keep headings visually attached to their own content, not neighboring sections */
       #newDeal .field-section + .field-section{margin-top:0!important}
       #newDeal .field-section>h3 + label,#newDeal .field-section>h3 + .form-grid,#newDeal .field-section>h3 + .field-grid-3,#newDeal .field-section>h3 + .field-grid-4,#newDeal .field-section>h3 + .price-row,#newDeal .field-section>h3 + .description-grid{margin-top:0!important}
       #newDeal .field-section label + .form-grid,#newDeal .field-section label + .field-grid-3,#newDeal .field-section label + .field-grid-4{margin-top:var(--fa-space-4)!important}
 
-      /* Informational mentor tip */
       .flipper-tip{margin-top:var(--fa-space-8);border-top:1px solid #e5ecef;padding:24px 2px 0;display:flex;align-items:flex-start;gap:12px;color:#536873}
       .flipper-tip-mark{width:30px;height:30px;border-radius:9px;background:#fff7e8;border:1px solid #f0d9aa;display:grid;place-items:center;flex:0 0 auto;font-size:15px}
       .flipper-tip-copy{min-width:0}
@@ -205,7 +199,7 @@
         }
         loadingTipIndex += 1
         updateLoadingTip()
-      }, 7000)
+      }, 15000)
     }
   }
 
