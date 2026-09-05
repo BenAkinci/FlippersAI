@@ -21,6 +21,7 @@
       .result-summary-line{color:#657d89;font-size:13px;line-height:1.45;margin-top:6px}
       .valuation-mode-badge{display:inline-flex;margin-top:8px;padding:4px 8px;border-radius:999px;background:#fff5df;border:1px solid #efd49c;color:#8b5b0b;font-size:10px;font-weight:850;letter-spacing:.06em;text-transform:uppercase}
       .valuation-mode-badge.researched{background:#edf9f4;border-color:#c7e8dc;color:#26705a}
+      .valuation-mode-badge.unavailable{background:#f5f7f8;border-color:#d8e0e4;color:#667985}
       .compact-action-card{margin-top:16px;border:1px solid #d9e6eb;border-radius:14px;padding:16px 18px;background:#fbfdfe}
       .compact-action-card>span{display:block;font-size:10px;letter-spacing:.12em;font-weight:850;color:#708794;margin-bottom:7px}
       .compact-action-card .primary-action{margin:0;font-size:15px;line-height:1.45;font-weight:680;color:#263943}
@@ -56,11 +57,25 @@
     const photos=sections.find(s=>(s.querySelector(':scope > span')?.textContent||'').includes('PHOTO FINDINGS'))
     if(photos){const items=[...photos.querySelectorAll('li')].map(li=>li.textContent.trim()).filter(Boolean);photos.classList.add('compact-photo-findings');const d=document.createElement('details');d.innerHTML='<summary>Show photo findings</summary><ul></ul>';items.forEach(x=>{const li=document.createElement('li');li.textContent=x;d.querySelector('ul').appendChild(li)});photos.appendChild(d)}
   }
+  function valuationBadge(panel,root){
+    const txt=(panel.textContent||'').toLowerCase()
+    const confidenceText=panel.querySelector(':scope > strong')?.textContent||''
+    const confidence=Number((confidenceText.match(/([0-9]+(?:\.[0-9]+)?)%/)||[])[1]||0)
+    const resaleMetric=[...root.querySelectorAll('.direct-analysis-metrics>div')].find(x=>(x.querySelector('span')?.textContent||'').trim()==='RESALE')
+    const resaleValue=(resaleMetric?.querySelector('strong')?.textContent||'').trim()
+    const hasResale=resaleValue && resaleValue!=='—'
+    const badge=document.createElement('span')
+    const explicitlyEstimated=/estimated|no live sold comps|unavailable|insufficient|verified live comps were unavailable/i.test(txt)
+    if(!hasResale||confidence<=0){badge.className='valuation-mode-badge unavailable';badge.textContent='Valuation unavailable'}
+    else if(explicitlyEstimated||confidence<60){badge.className='valuation-mode-badge';badge.textContent='Estimated valuation'}
+    else{badge.className='valuation-mode-badge researched';badge.textContent='Market-backed valuation'}
+    panel.appendChild(badge)
+  }
   function enhanceResult(){
     injectStyles();const root=document.getElementById('directAnalysisResult');if(!root||root.classList.contains('direct-analysis-loading')||root.classList.contains('direct-analysis-error')||root.dataset.ux109==='true')return
     root.dataset.ux109='true';const headP=root.querySelector('.direct-analysis-result-head>div:first-child>p');if(headP)headP.textContent=firstSentence(headP.textContent)
     const panels=[...root.querySelectorAll('.direct-analysis-panel')]
-    for(const panel of panels){const label=(panel.querySelector(':scope > span')?.textContent||'').toUpperCase();if(label.includes('AUTHENTICITY'))makeExpandable(panel,'Why?');else if(label.includes('VALUATION')){const txt=panel.textContent||'';makeExpandable(panel,'Show valuation basis');const badge=document.createElement('span');const estimated=/estimated|no live sold comps|unavailable/i.test(txt);badge.className=`valuation-mode-badge ${estimated?'':'researched'}`;badge.textContent=estimated?'Estimated valuation':'Market-backed valuation';panel.appendChild(badge)}else if(label.includes('CONDITION')){const strong=panel.querySelector(':scope > strong');if(strong&&strong.textContent.length>115){const full=strong.textContent.trim();strong.textContent=firstSentence(full);const d=document.createElement('details');d.innerHTML='<summary class="result-detail-toggle">More condition detail</summary><div class="result-detail-body"><p></p></div>';d.querySelector('p').textContent=full;panel.appendChild(d)}}}
+    for(const panel of panels){const label=(panel.querySelector(':scope > span')?.textContent||'').toUpperCase();if(label.includes('AUTHENTICITY'))makeExpandable(panel,'Why?');else if(label.includes('VALUATION')){makeExpandable(panel,'Show valuation basis');valuationBadge(panel,root)}else if(label.includes('CONDITION')){const strong=panel.querySelector(':scope > strong');if(strong&&strong.textContent.length>115){const full=strong.textContent.trim();strong.textContent=firstSentence(full);const d=document.createElement('details');d.innerHTML='<summary class="result-detail-toggle">More condition detail</summary><div class="result-detail-body"><p></p></div>';d.querySelector('p').textContent=full;panel.appendChild(d)}}}
     compactActions(root)
   }
   let timer;const app=document.getElementById('app');if(app)new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(enhanceResult,40)}).observe(app,{childList:true,subtree:true});enhanceResult()
