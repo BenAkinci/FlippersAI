@@ -1,6 +1,4 @@
 (() => {
-  const RESET_KEY='flippers:reset-analyse-on-load'
-
   function injectStyles(){
     if(document.getElementById('analyseReset124Styles'))return
     const s=document.createElement('style')
@@ -15,41 +13,64 @@
     document.head.appendChild(s)
   }
 
+  function clearEvidence(){
+    // Use the existing thumbnail remove handlers so the structured Analyse module's
+    // private evidenceFiles array is cleared too, not just the visible DOM.
+    const removeButtons=[...document.querySelectorAll('#manualEvidenceTray [data-remove]')].reverse()
+    removeButtons.forEach(button=>{try{button.click()}catch{}})
+
+    const input=document.getElementById('manualEvidenceInput')
+    if(input)try{input.value=''}catch{}
+    const count=document.getElementById('manualEvidenceCount')
+    if(count)count.textContent='0/10 images'
+    const dropStatus=document.getElementById('manualDropStatus')
+    if(dropStatus)dropStatus.textContent=''
+    const autoStatus=document.getElementById('autoExtractStatus')
+    if(autoStatus){
+      autoStatus.className='auto-status'
+      autoStatus.textContent='Add screenshots/photos and FlippersAI will automatically fill the form.'
+    }
+
+    document.querySelectorAll('[data-paste-preview],.manual-paste-preview,.paste-preview').forEach(n=>n.remove())
+  }
+
   function clearForm(form){
     if(!form)return false
     try{form.reset()}catch{}
     form.querySelectorAll('input,textarea,select').forEach(el=>{
       if(el instanceof HTMLInputElement){
         if(el.type==='checkbox'||el.type==='radio')el.checked=false
-        else if(el.type==='file')el.value=''
+        else if(el.type==='file')try{el.value=''}catch{}
         else el.value=''
       }else if(el instanceof HTMLTextAreaElement)el.value=''
       else if(el instanceof HTMLSelectElement)el.selectedIndex=0
       delete el.dataset.autoValue
+      delete el.dataset.canonicalValue
+      delete el.dataset.userEdited
+      delete el.dataset.sizeAlternates
       el.classList.remove('auto-filled','is-invalid','invalid','field-missing','field-na')
       el.removeAttribute('aria-invalid')
       el.dispatchEvent(new Event('input',{bubbles:true}))
       el.dispatchEvent(new Event('change',{bubbles:true}))
     })
     document.getElementById('directAnalysisResult')?.remove()
-    document.querySelectorAll('.analysis-audit-panel,.decision-audit,.metric-audit-panel').forEach(n=>n.remove())
+    document.querySelectorAll('.analysis-audit-panel,.decision-audit,.metric-audit-panel,.analysis-calculation-panel').forEach(n=>n.remove())
     window.__flippersLastAuditedAnalysis=null
     return true
   }
 
-  function completeFreshReset(){
-    if(sessionStorage.getItem(RESET_KEY)!=='1')return
-    const form=document.getElementById('newDeal')
-    if(!form)return
-    if(clearForm(form)){
-      sessionStorage.removeItem(RESET_KEY)
-      window.scrollTo({top:0,behavior:'auto'})
-    }
-  }
-
   function startNewAnalysis(){
-    sessionStorage.setItem(RESET_KEY,'1')
-    window.location.reload()
+    const form=document.getElementById('newDeal')
+    clearEvidence()
+    clearForm(form)
+    window.dispatchEvent(new CustomEvent('flippers:analyse-reset'))
+    window.scrollTo({top:0,behavior:'auto'})
+
+    // Stay on the Analyse view. Do not reload or route through Home.
+    requestAnimationFrame(()=>{
+      const target=document.getElementById('manualDropZone')||document.getElementById('newDeal')
+      target?.scrollIntoView?.({block:'start',behavior:'auto'})
+    })
   }
 
   function enhanceResult(){
@@ -66,10 +87,9 @@
   let timer
   const observer=new MutationObserver(()=>{
     clearTimeout(timer)
-    timer=setTimeout(()=>{completeFreshReset();enhanceResult()},40)
+    timer=setTimeout(enhanceResult,40)
   })
   const app=document.getElementById('app')
   if(app)observer.observe(app,{childList:true,subtree:true})
-  completeFreshReset()
   enhanceResult()
 })()
