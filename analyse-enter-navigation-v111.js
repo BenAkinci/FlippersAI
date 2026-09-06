@@ -49,12 +49,30 @@
     if (!button) return
     button.classList.add('analyse-enter-ready')
     button.focus({ preventScroll: true })
-    button.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  function requestSubmitWithoutViewportJump(form, button) {
+    const x = window.scrollX
+    const y = window.scrollY
+    const restore = () => window.scrollTo({ left: x, top: y, behavior: 'auto' })
+
+    button.classList.remove('analyse-enter-ready')
+    form.requestSubmit(button)
+
+    // Analyse inserts/removes loading UI synchronously and over the next few frames.
+    // Keep Enter submission visually stationary while those DOM changes settle.
+    queueMicrotask(restore)
+    requestAnimationFrame(() => {
+      restore()
+      requestAnimationFrame(restore)
+    })
+    setTimeout(restore, 80)
+    setTimeout(restore, 220)
   }
 
   function bind(form) {
-    if (!form || form.dataset.enterNavigation === 'v111') return
-    form.dataset.enterNavigation = 'v111'
+    if (!form || form.dataset.enterNavigation === 'v133') return
+    form.dataset.enterNavigation = 'v133'
 
     form.addEventListener('focusin', event => {
       const button = getSubmitButton(form)
@@ -70,8 +88,8 @@
 
       if (target === button) {
         event.preventDefault()
-        button.classList.remove('analyse-enter-ready')
-        form.requestSubmit(button)
+        event.stopPropagation()
+        requestSubmitWithoutViewportJump(form, button)
         return
       }
 
