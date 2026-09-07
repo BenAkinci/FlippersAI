@@ -9,7 +9,7 @@
   }
 
   const clean = v => String(v || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()
-  const linesFrom = x => [x.description, x.extra_info, ...(Array.isArray(x.visible_item_details) ? x.visible_item_details : [])]
+  const linesFrom = x => [x.listing_title, x.description, x.extra_info, ...(Array.isArray(x.visible_item_details) ? x.visible_item_details : [])]
     .filter(Boolean)
     .flatMap(v => String(v).split(/\n|\r|•|·/))
     .map(clean)
@@ -34,20 +34,56 @@
     return ''
   }
 
-  function sellerModel(lines, brand) {
-    const b = clean(brand)
-    if (!b) return ''
-    const escaped = b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const rx = new RegExp(`^${escaped}\\s+(.+)$`, 'i')
-    for (const line of lines) {
-      const m = line.match(rx)
-      if (!m) continue
-      const model = clean(m[1]
-        .replace(/\b(?:US|UK|EU|AU)\s*\d+(?:\.\d+)?(?:\s*1\/2)?\b.*$/i, '')
-        .replace(/\bsize\s*(?:US|UK|EU|AU)?\s*\d+(?:\.\d+)?(?:\s*1\/2)?\b.*$/i, ''))
-      if (model && model.length <= 80) return model
-    }
+  function provenanceValue(x, field) {
+    const candidates = [
+      x?.[`${field}_provenance`],
+      x?.[`${field}_source`],
+      x?.provenance?.[field],
+      x?.sources?.[field]
+    ]
+    return clean(candidates.find(Boolean)).toLowerCase()
+  }
+
+  function authoritativeProvenance(value) {
+    return /(?:seller[_ -]?text|listing[_ -]?text|label[_ -]?code|style[_ -]?code|sku|product[_ -]?code|box[_ -]?label|authoritative|official[_ -]?match|catalog[_ -]?match)/i.test(value)
+  }
+
+  function descriptiveModel(value) {
+    const v = clean(value)
+    if (!v) return true
+    if (v.length > 90) return true
+    if (/\b(?:logo|on side|side logo|lace|laces|pull tab|sole|upper|silhouette|shape|style|styled|style shoe|tuned[- ]?style|trainer(?:s)?|sneaker(?:s)?|shoe(?:s)?|pair|footwear|low top|high top|mid top|chunky|mesh|leather upper|rubber sole)\b/i.test(v)) return true
+    if (/^(?:men'?s|women'?s|unisex)?\s*(?:black|white|grey|gray|red|blue|green|brown|beige|cream|pink|purple|orange|yellow)(?:\s+\w+){0,2}$/i.test(v)) return true
+    return false
+  }
+
+  function literalModel(x, lines) {
+    const model = clean(x.model)
+    if (!model || descriptiveModel(model)) return ''
+
+    // Preserve a model only when the response carries authoritative provenance,
+    // or the exact model string is visibly present in listing/seller evidence.
+    const provenance = provenanceValue(x, 'model')
+    if (authoritativeProvenance(provenance)) return model
+
+    const haystack = [x.listing_title, ...lines].filter(Boolean).map(clean)
+    const needle = model.toLowerCase()
+    if (needle.length >= 3 && haystack.some(line => line.toLowerCase().includes(needle))) return model
+
     return ''
+  }
+
+  function officialColourDisplay(x) {
+    const name = clean(x.official_colourway_name || x.official_colorway_name || x.colourway_name || x.colorway_name)
+    const colours = clean(x.official_colour || x.official_color || x.official_colours || x.official_colors || x.manufacturer_colour || x.manufacturer_color)
+    const provenance = clean(
+      x.official_colourway_provenance || x.official_colorway_provenance ||
+      x.colour_provenance || x.color_provenance || x.colour_source || x.color_source
+    ).toLowerCase()
+
+    if (!authoritativeProvenance(provenance) && !clean(x.official_colourway_verified || x.official_colorway_verified)) return ''
+    if (name && colours) return `${name} — ${colours}`
+    return name || colours
   }
 
   function sizesFrom(x, lines) {
@@ -82,15 +118,27 @@
     if (!x || typeof x !== 'object') return payload
     const lines = linesFrom(x)
 
-    // Literal listing/seller text outranks visual interpretation for fields the seller explicitly states.
+    // Literal listing/seller text outranks visual interpretation for seller-stated facts.
     const condition = sellerCondition(lines)
-    const colour = sellerColour(lines)
-    const model = sellerModel(lines, x.brand)
+    const sellerColourValue = sellerColour(lines)
+    const model = literalModel(x, lines)
     const title = likelyExactTitle(x, lines)
+    const officialColour = officialColourDisplay(x)
+
     if (condition) x.condition = condition
-    if (colour) x.colour = colour
-    if (model) x.model = model
     if (title) x.listing_title = title
+
+    // Model is a strict identity field. A visual descriptor or unsupported guess is never a model.
+    x.model = model || ''
+    if (!model) {
+      x.model_confidence = null
+      x.model_unverified = true
+    }
+
+    // Prefer a verified official colourway; otherwise only preserve explicit seller wording.
+    x.colour = officialColour || sellerColourValue || ''
+    if (officialColour) x.colour_display = officialColour
+    if (!officialColour && !sellerColourValue) x.colour_unverified = true
 
     // Multiple shoe-size systems are alternate representations, not automatically contradictions.
     const sizes = sizesFrom(x, lines)
