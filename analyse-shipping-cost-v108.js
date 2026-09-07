@@ -34,7 +34,7 @@
     const input=form.querySelector('[name="shipping_cost"]')
     const context=ensureShippingContext(form)
     const raw=String(input?.value||'').trim()
-    if(raw===''){context.value='';return}
+    if(raw===''){context.value='FlippersAI acquisition shipping cost: unknown (not provided; do not treat as free shipping).';return}
     const amount=Number(raw)
     if(!Number.isFinite(amount)||amount<0){context.value='';return}
     const currency=String(form.elements?.currency?.value||'').trim().toUpperCase()||'AUD'
@@ -54,7 +54,7 @@
     if(!existing){
       const label=document.createElement('label')
       label.className='shipping-cost-field'
-      label.innerHTML='<span>Shipping cost</span><input name="shipping_cost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"><small>Same currency as the listing price. Enter 0 for free shipping or pickup.</small><small class="shipping-cost-error">Enter the shipping cost, or 0 for free shipping / pickup.</small>'
+      label.innerHTML='<span>Shipping cost</span><input name="shipping_cost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Unknown (optional)"><small>Leave blank if unknown. Enter 0 only for confirmed free shipping or pickup.</small><small class="shipping-cost-error">Enter a valid non-negative shipping cost, or leave blank if unknown.</small>'
       const disclosure=section.querySelector('#discountDisclosure')
       if(disclosure) section.insertBefore(label,disclosure)
       else section.appendChild(label)
@@ -68,9 +68,10 @@
 
   function shippingValue(form){
     const input=form.querySelector('[name="shipping_cost"]')
-    if(!input) return {ok:false,amount:null}
+    if(!input) return {ok:true,amount:null}
     const raw=String(input.value||'').trim()
-    if(raw==='') return {ok:false,amount:null}
+    if(input.validity?.badInput) return {ok:false,amount:null}
+    if(raw==='') return {ok:true,amount:null}
     const amount=Number(raw)
     return {ok:Number.isFinite(amount)&&amount>=0,amount:Number.isFinite(amount)?amount:null}
   }

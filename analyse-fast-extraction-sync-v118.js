@@ -38,14 +38,14 @@
   const sizeText=(size,system)=>system?`${system} ${size}`:String(size||'')
 
   function canAutoUpdate(el){
-    if(!el) return false
+    if(!el || el.dataset.userEdited==='true') return false
     const value=String(el.value||'').trim()
     const previous=String(el.dataset.autoValue||'').trim()
     return !value || value===previous
   }
 
   function markAuto(el,value){
-    if(!el || value===null || value===undefined || value==='') return
+    if(!el || value===null || value===undefined || (value==='' && el.name!=='included')) return
     if(!canAutoUpdate(el)) return
     el.value=String(value)
     el.dataset.autoValue=String(value)
@@ -60,13 +60,13 @@
 
   function syncExtractionFields(form){
     if(!form || !latestExtraction) return
-    const x=latestExtraction
+    const x=window.FlippersIdentityPolicy.reconcile(latestExtraction)
 
     markAuto(form.elements?.description, x.description)
     markAuto(form.elements?.seller_items_sold, x.seller_items_sold)
 
     const included=joinFacts(x.included_items)
-    if(included) markAuto(form.elements?.included, included)
+    markAuto(form.elements?.included, included)
 
     const flaws=joinFacts(x.known_flaws_damage)
     if(flaws) markAuto(form.elements?.flaws, flaws)
