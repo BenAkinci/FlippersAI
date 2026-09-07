@@ -256,8 +256,8 @@ function shell(content) {
           </div>
         </div>
       </header>
+      <nav class="mobile-nav" aria-label="Main navigation">${navMarkup(true)}</nav>
       <main class="content">${content}</main>
-      <nav class="mobile-nav">${navMarkup(true)}</nav>
     </div>`
 
   $$('[data-nav]').forEach(b => b.onclick = () => route(b.dataset.nav))
