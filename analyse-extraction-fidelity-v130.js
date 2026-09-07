@@ -24,32 +24,6 @@
     return ''
   }
 
-  function sellerColour(lines) {
-    for (const line of lines) {
-      let m = line.match(/^(.{1,70}?)\s+colou?rway\b/i)
-      if (m) return clean(m[1])
-      m = line.match(/\bcolou?r\s*[:\-]\s*([^|;,.]{2,70})/i)
-      if (m) return clean(m[1])
-    }
-    return ''
-  }
-
-  function sellerModel(lines, brand) {
-    const b = clean(brand)
-    if (!b) return ''
-    const escaped = b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const rx = new RegExp(`^${escaped}\\s+(.+)$`, 'i')
-    for (const line of lines) {
-      const m = line.match(rx)
-      if (!m) continue
-      const model = clean(m[1]
-        .replace(/\b(?:US|UK|EU|AU)\s*\d+(?:\.\d+)?(?:\s*1\/2)?\b.*$/i, '')
-        .replace(/\bsize\s*(?:US|UK|EU|AU)?\s*\d+(?:\.\d+)?(?:\s*1\/2)?\b.*$/i, ''))
-      if (model && model.length <= 80) return model
-    }
-    return ''
-  }
-
   function sizesFrom(x, lines) {
     const text = [x.listing_title, x.size_system && x.size ? `${x.size_system} ${x.size}` : x.size, ...lines].filter(Boolean).join(' | ').toUpperCase()
     const out = []
@@ -84,12 +58,9 @@
 
     // Literal listing/seller text outranks visual interpretation for fields the seller explicitly states.
     const condition = sellerCondition(lines)
-    const colour = sellerColour(lines)
-    const model = sellerModel(lines, x.brand)
     const title = likelyExactTitle(x, lines)
     if (condition) x.condition = condition
-    if (colour) x.colour = colour
-    if (model) x.model = model
+    window.FlippersIdentityPolicy.reconcile(x)
     if (title) x.listing_title = title
 
     // Multiple shoe-size systems are alternate representations, not automatically contradictions.

@@ -28,7 +28,7 @@ function formMarkup(){return `
  <div id="manualEvidenceTray" class="manual-evidence-tray"></div>
  <div id="autoExtractStatus" class="auto-status">Add screenshots/photos and FlippersAI will automatically fill the form.</div>
  <div class="field-section"><h3>Listing source</h3><div class="form-grid"><label>Marketplace<select name="platform"><option value="">Select marketplace</option><option value="facebook">Facebook Marketplace</option><option value="depop">Depop</option><option value="ebay">eBay</option><option value="gumtree">Gumtree</option><option value="vinted">Vinted</option><option value="other">Other</option></select></label><label>Listing URL <small>optional</small><input name="url" placeholder="Optional reference only"></label></div></div>
- <div class="field-section"><h3>Item details</h3><label>Listing title<input name="title" placeholder="Exact listing title"></label><div class="field-grid-4"><label>Brand<input name="brand"></label><label>Model<input name="model"></label><label>Colour<input name="colour"></label><label>Condition<input name="condition" placeholder="Seller wording"></label></div><div class="form-grid"><label>Size<input name="size"></label><label>Size system<select name="size_system"><option value="">Not applicable / unknown</option><option value="US">US</option><option value="UK">UK</option><option value="EU">EU</option><option value="AU">AU</option><option value="other">Other</option></select></label></div></div>
+ <div class="field-section"><h3>Item details</h3><label>Listing title<input name="title" placeholder="Exact listing title"></label><div class="field-grid-4"><label>Brand<input name="brand"></label><label>Model<input name="model" placeholder="Unknown unless exact model is supported"></label><label>Colour<input name="colour"></label><label>Condition<input name="condition" placeholder="Seller wording"></label></div><div class="form-grid"><label>Size<input name="size"></label><label>Size system<select name="size_system"><option value="">Not applicable / unknown</option><option value="US">US</option><option value="UK">UK</option><option value="EU">EU</option><option value="AU">AU</option><option value="other">Other</option></select></label></div></div>
  <div class="field-section"><h3>Price</h3><div class="price-row"><label>Current price<input name="price" type="number" min="0" step="0.01"></label><label>Currency<select name="currency"><option value="AUD">AUD</option><option value="USD">USD</option><option value="GBP">GBP</option></select></label><label>Original price <small>before discount</small><input name="original_price" type="number" min="0" step="0.01"></label></div><label class="inline-check"><input name="discounted" type="checkbox"><span>This item is on sale / discounted</span></label><label>Discount / sale note <small>optional</small><input name="discount_note" placeholder="e.g. reduced from $180, 30% off, clearance"></label></div>
  <div class="field-section"><h3>Seller & location</h3><div class="field-grid-4"><label>Seller name<input name="seller"></label><label>Seller rating<input name="seller_rating" type="number" min="0" max="5" step="0.1"></label><label>Seller review count<input name="seller_reviews" type="number" min="0" step="1"></label><label>Location<input name="location"></label></div></div>
  <div class="field-section"><h3>Listing text</h3><div class="description-grid"><label>Seller description<textarea name="description" placeholder="Paste the listing description exactly as written"></textarea></label><label>Extra information<textarea name="extra_info" placeholder="Seller bio, pickup/shipping notes, profile details, extra context, anything else you want FlippersAI to consider"></textarea></label></div></div>
@@ -46,7 +46,7 @@ function syncInput(){const input=$('#manualEvidenceInput');if(!input)return;cons
 function addFiles(files){for(const f of [...files]){if(!f.type?.startsWith('image/'))continue;if(evidenceFiles.length>=10)break;evidenceFiles.push(f)}syncInput();renderTray();scheduleExtraction()}
 
 function setField(name,value){
- const el=$(`[name="${name}"]`);if(!el||value===null||value===undefined||value==='')return
+ const el=$(`[name="${name}"]`);if(!el||el.dataset.userEdited==='true'||value===null||value===undefined||(value===''&&!['model','colour'].includes(name)))return
  const previous=el.dataset.autoValue
  const safeToUpdate=!el.value||el.value===previous
  if(!safeToUpdate)return
@@ -62,7 +62,7 @@ async function extractFromImages(){
   const platform=String($('[name="platform"]')?.value||'')
   const{data,error}=await supabase.functions.invoke('listing-visual-extraction',{body:{images,platform}})
   if(error||data?.error)throw new Error(error?.message||data?.error||'Could not read screenshots')
-  const x=data.extraction||{}
+  const x=window.FlippersIdentityPolicy.reconcile(data.extraction||{})
   setField('platform',({Facebook:'facebook','Facebook Marketplace':'facebook',Depop:'depop',eBay:'ebay',Gumtree:'gumtree',Vinted:'vinted'})[x.marketplace]||String(x.marketplace||'').toLowerCase())
   setField('title',x.listing_title);setField('brand',x.brand);setField('model',x.model);setField('colour',x.colour);setField('size',x.size);setField('size_system',x.size_system)
   setField('price',x.asking_price);setField('original_price',x.original_price);setField('currency',x.currency);setField('discounted',x.is_discounted);setField('discount_note',x.discount_text);setField('shipping_cost',x.shipping_cost)
@@ -106,7 +106,7 @@ function enhance(){
  injectStyles();form.dataset.structured='v104';form.innerHTML=formMarkup();evidenceFiles=[];renderTray()
  const input=$('#manualEvidenceInput');input?.addEventListener('change',e=>addFiles(e.target.files))
  form.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();runAnalysis(form)},true)
- form.addEventListener('input',e=>{const el=e.target;if(el instanceof HTMLInputElement||el instanceof HTMLTextAreaElement||el instanceof HTMLSelectElement){if(el.dataset.autoValue!==undefined&&el.value!==el.dataset.autoValue){delete el.dataset.autoValue;el.classList.remove('auto-filled')}}})
+ form.addEventListener('input',e=>{const el=e.target;if(e.isTrusted&&el?.dataset)el.dataset.userEdited='true';if(el instanceof HTMLInputElement||el instanceof HTMLTextAreaElement||el instanceof HTMLSelectElement){if(el.dataset.autoValue!==undefined&&el.value!==el.dataset.autoValue){delete el.dataset.autoValue;el.classList.remove('auto-filled')}}})
  const page=$('.page-head');if(page){const h=$('h1',page),p=$('p',page);if(h)h.textContent='Analyse a reselling opportunity';if(p)p.textContent='Add the listing evidence. FlippersAI will fill what it can see, then research the market and tell you whether the item is worth buying.'}
 }
 

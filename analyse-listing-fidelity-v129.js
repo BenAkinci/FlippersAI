@@ -34,31 +34,6 @@
     return ''
   }
 
-  function exactColour(lines) {
-    for (const line of lines) {
-      const m = line.match(/^(.{1,60}?)\s+colou?rway\b/i)
-      if (m) return m[1].trim()
-    }
-    return ''
-  }
-
-  function exactModel(lines, brand) {
-    const b = String(brand || '').trim()
-    if (!b) return ''
-    const escaped = b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const brandLine = new RegExp(`^${escaped}\\s+(.+)$`, 'i')
-    for (const line of lines) {
-      const m = line.match(brandLine)
-      if (!m) continue
-      let model = m[1]
-        .replace(/\b(?:US|UK|EU|AU)\s*\d+(?:\.\d+)?\b.*$/i, '')
-        .replace(/\bsize\s*(?:US|UK|EU|AU)?\s*\d+(?:\.\d+)?\b.*$/i, '')
-        .trim()
-      if (model && model.length <= 80) return model
-    }
-    return ''
-  }
-
   function reconcileLiteralListingFacts() {
     const form = $('#newDeal')
     if (!form) return
@@ -66,12 +41,8 @@
     if (!lines.length) return
 
     const condition = exactCondition(lines)
-    const colour = exactColour(lines)
-    const model = exactModel(lines, form.elements?.brand?.value)
 
     if (condition) setAutoField('condition', condition)
-    if (colour) setAutoField('colour', colour)
-    if (model) setAutoField('model', model)
   }
 
   function parseDualSizes(raw) {

@@ -30,6 +30,7 @@
     return String(value||'').replace(/^([^A-Za-z]*)([a-z])/,(_,prefix,c)=>prefix+c.toUpperCase())
   }
   function normalizeField(input){
+    if (input?.name === 'model' || input?.name === 'colour') return
     const original=String(input?.value||'')
     if(!original.trim())return
     let normalized=normalizePunctuation(normalizeWhitespace(original))
