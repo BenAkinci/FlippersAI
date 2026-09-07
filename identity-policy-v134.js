@@ -14,6 +14,13 @@
     return contains(evidence.quote, value)
   }
   function reconcile(x) {
+    // Extras must be separately evidenced secondary items, never the product itself.
+    const extras = Array.isArray(x.included_item_evidence) ? x.included_item_evidence : []
+    x.included_items = (Array.isArray(x.included_items) ? x.included_items : []).filter(item =>
+      extras.some(e => text(e.item) === text(item) && e.is_secondary === true &&
+        ['listing_text', 'photo'].includes(e.source) && text(e.evidence)) &&
+      !/\b(?:not included|not supplied|no box|both shoes|pair of .*?(?:shoes|sneakers|trainers))\b/i.test(item)
+    )
     const model = text(x.model)
     const ambiguous = /\b(?:unknown|unidentified|possibly|probably|likely|style|inspired|similar|logo on|looks like|could be)\b/i
     x.model = supported(model, x.model_evidence) && !ambiguous.test(model) ? model : ''

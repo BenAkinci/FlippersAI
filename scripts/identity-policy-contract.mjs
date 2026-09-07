@@ -33,3 +33,15 @@ vm.runInContext("setField('model','Air Max 90')",ui);assert.equal(el.value,'My m
 el.value='';vm.runInContext("setField('model','Air Max 90')",ui);assert.equal(el.value,'')
 el.dataset={autoValue:'Old guess'};el.value='Old guess';vm.runInContext("setField('model','')",ui);assert.equal(el.value,'')
 console.log('Identity evidence, conflicts, formatting, shared policy and manual-edit contracts passed')
+const withExtras=(items,proof)=>reconcile({included_items:items,included_item_evidence:proof}).included_items
+assert.deepEqual(withExtras(['pair of Fred Perry sneakers (both shoes visible)'],[]),[])
+assert.deepEqual(withExtras(['Shoes'],[{item:'Shoes',is_secondary:false,source:'photo',evidence:'The main product'}]),[])
+assert.deepEqual(withExtras(['Extra laces','Original box'],[{item:'Extra laces',is_secondary:true,source:'photo',evidence:'Separate bag of spare laces beside shoes'},{item:'Original box',is_secondary:true,source:'listing_text',evidence:'Includes original box'}]),['Extra laces','Original box'])
+const shipping=fs.readFileSync('analyse-shipping-cost-v108.js','utf8')
+const shippingCode=shipping.slice(shipping.indexOf('  function shippingValue'),shipping.indexOf("  document.addEventListener('submit'"))
+const sc={};vm.createContext(sc);vm.runInContext(shippingCode,sc)
+for(const [value,ok,amount] of [['',true,null],['0',true,0],['12.50',true,12.5],['-1',false,-1],['bad',false,null]]){
+ const result=sc.shippingValue({querySelector:()=>({value})});assert.equal(result.ok,ok);assert.equal(result.amount,amount)
+}
+assert.equal(sc.shippingValue({querySelector:()=>({value:'',validity:{badInput:true}})}).ok,false)
+console.log('Accessories-only and optional-shipping regression checks passed')
