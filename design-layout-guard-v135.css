@@ -1,0 +1,104 @@
+/* FlippersAI v135 — layout guardrails
+   Purpose: prevent accidental overlap, clipping, misalignment and uneven responsive spacing
+   while preserving the existing visual language. */
+
+:where(.app-shell,.content,.page-head,.section-block,.focused-card,.card,.field-section,.direct-analysis-result,.direct-analysis-result-head,.direct-analysis-grid,.direct-analysis-panel,.direct-analysis-section,.direct-analysis-actions,.manual-analyse-intro,.manual-upload,.manual-evidence-tray,.form-stack,.form-grid,.field-grid-3,.field-grid-4,.price-row,.description-grid,.decision-card,.decision-head,.decision-money,.metric-grid,.deal-grid,.capital-hero,.next-card,.inventory-row,.opportunity-row,.transaction-row,.lesson,.lesson summary) > * {
+  min-width:0;
+}
+
+img,svg,video,canvas{max-width:100%}
+img{height:auto}
+
+/* Text must wrap inside cards/boxes instead of pushing siblings over them. */
+:where(.page-head,.section-heading,.next-card,.decision-head,.direct-analysis-result-head,.direct-analysis-panel,.direct-analysis-section,.field-section,.manual-upload,.inventory-copy,.opportunity-main,.transaction-row,.lesson summary) :where(h1,h2,h3,h4,p,strong,span,small,label){
+  overflow-wrap:anywhere;
+}
+
+/* Keep action clusters aligned and prevent buttons colliding with text. */
+.button-row,.direct-analysis-actions,.quick-actions,.workflow-secondary{
+  align-items:center;
+}
+.button-row,.direct-analysis-actions,.quick-actions{
+  flex-wrap:wrap;
+}
+.button,.text-button,.icon-button{
+  flex:0 0 auto;
+}
+.direct-analysis-actions .button,.button-row .button{
+  max-width:100%;
+}
+
+/* Headings and metadata should remain vertically aligned even with long content. */
+.section-heading,.decision-head,.direct-analysis-result-head{
+  align-items:flex-start;
+}
+.section-heading > :first-child,.decision-head > :first-child,.direct-analysis-result-head > :first-child{
+  min-width:0;
+  flex:1 1 auto;
+}
+.direct-analysis-score,.score{
+  flex:0 0 auto;
+}
+
+/* Form geometry */
+.form-stack{gap:16px}
+.field-section{width:100%}
+.field-section > h3{line-height:1.25}
+.field-section :where(input,textarea,select){max-width:100%}
+.field-section :where(.form-grid,.field-grid-3,.field-grid-4,.price-row,.description-grid){align-items:start}
+.field-section label{min-width:0}
+.field-section label > :where(input,textarea,select){margin-top:auto}
+.inline-check{align-items:flex-start}
+.inline-check input{flex:0 0 auto}
+
+/* Evidence upload should never allow count/status text to cover the instructions. */
+.manual-upload{justify-content:flex-start}
+.manual-upload > span{min-width:0}
+.manual-upload > b{flex:0 0 auto;white-space:nowrap;margin-left:auto}
+.manual-evidence-thumb{min-width:0}
+.manual-evidence-thumb img{height:105px;object-fit:cover}
+.manual-evidence-thumb button{display:grid;place-items:center;line-height:1;padding:0}
+
+/* Analysis result geometry */
+.direct-analysis-result{overflow:hidden}
+.direct-analysis-metrics,.direct-analysis-grid{align-items:stretch}
+.direct-analysis-metrics > div,.direct-analysis-panel,.direct-analysis-section{min-width:0}
+.direct-analysis-metrics strong,.direct-analysis-panel strong{overflow-wrap:anywhere}
+.direct-analysis-actions{row-gap:10px}
+
+/* Reusable list/card alignment */
+.inventory-right{flex:0 0 auto}
+.next-card > :nth-child(2){min-width:0}
+.lesson summary > div{min-width:0}
+
+/* Prevent floating/popover content from escaping the viewport. */
+.account-popover{max-width:calc(100vw - 28px)}
+.toast{width:max-content;max-width:calc(100vw - 32px)}
+
+@media(max-width:860px){
+  .section-heading{align-items:flex-start;flex-wrap:wrap}
+  .section-heading > span{width:100%}
+  .direct-analysis-result-head{gap:16px}
+  .manual-upload{flex-wrap:wrap}
+  .manual-upload > b{margin-left:0}
+}
+
+@media(max-width:640px){
+  .direct-analysis-result-head{flex-direction:column}
+  .direct-analysis-score{width:100%}
+  .direct-analysis-actions,.button-row{display:grid;grid-template-columns:1fr}
+  .direct-analysis-actions .button,.button-row .button{width:100%}
+  .manual-upload{align-items:flex-start;padding:18px}
+  .manual-upload > span{width:100%}
+  .manual-upload > b{width:100%;text-align:left}
+  .manual-evidence-tray{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .inventory-row,.opportunity-row,.transaction-row{align-items:flex-start}
+  .inventory-right{max-width:42%}
+}
+
+@media(max-width:420px){
+  .manual-evidence-tray{grid-template-columns:1fr 1fr}
+  .quick-actions{grid-template-columns:1fr}
+  .metric-grid,.decision-money,.capital-hero{grid-template-columns:1fr}
+  .inventory-right{max-width:46%}
+}
