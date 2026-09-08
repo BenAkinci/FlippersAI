@@ -1,0 +1,78 @@
+@media (max-width:860px){
+  .topbar{position:sticky;top:0;z-index:50;height:70px}
+  .topbar-inner{width:calc(100% - 24px);gap:16px}
+
+  .mobile-nav{
+    position:sticky!important;
+    top:70px!important;
+    bottom:auto!important;
+    left:auto!important;
+    right:auto!important;
+    display:flex!important;
+    flex-wrap:nowrap!important;
+    align-items:center;
+    gap:6px;
+    width:100%;
+    min-height:62px;
+    padding:7px 10px 8px!important;
+    margin:0;
+    overflow-x:auto;
+    overflow-y:hidden;
+    overscroll-behavior-x:contain;
+    scroll-snap-type:x proximity;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+    background:rgba(255,255,255,.98);
+    border-top:0!important;
+    border-bottom:1px solid var(--line);
+    backdrop-filter:blur(16px);
+    z-index:45;
+  }
+  .mobile-nav::-webkit-scrollbar{display:none}
+
+  .mobile-nav-item{
+    flex:0 0 auto;
+    min-width:72px;
+    min-height:48px;
+    padding:6px 8px!important;
+    border:0;
+    border-radius:12px;
+    background:transparent;
+    color:#6f7378;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:3px!important;
+    font-size:11px!important;
+    line-height:1.15;
+    font-weight:650!important;
+    white-space:nowrap;
+    scroll-snap-align:center;
+  }
+  .mobile-nav-item .ico,
+  .mobile-nav-item .nav-v138-icon{
+    width:21px!important;
+    height:21px!important;
+    display:block!important;
+    flex:0 0 21px;
+  }
+  .mobile-nav-item>span:last-child{display:block;line-height:1.1}
+  .mobile-nav-item.active{
+    color:#e28100!important;
+    background:#fff4df!important;
+  }
+  .mobile-nav-item:focus-visible{outline:2px solid #e28100;outline-offset:2px}
+
+  .content{
+    width:calc(100% - 28px);
+    padding:28px 0 56px!important;
+  }
+}
+
+@media (max-width:520px){
+  .topbar-inner{width:calc(100% - 20px);gap:12px}
+  .brand{font-size:18px}
+  .mobile-nav{padding-inline:8px!important;gap:4px}
+  .mobile-nav-item{min-width:66px;padding-inline:6px!important;font-size:10.5px!important}
+}
