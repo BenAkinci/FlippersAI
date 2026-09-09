@@ -1,0 +1,22 @@
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+
+# Local tool state
+.cursor/local*
+.wrangler/
+.supabase/
+
+# Dependencies / build output
+node_modules/
+public/
+flippersai-extension.zip
+
+# Logs / OS / editor
+*.log
+.DS_Store
+Thumbs.db
+.vscode/*.local.json
