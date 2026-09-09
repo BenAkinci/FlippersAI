@@ -1,0 +1,30 @@
+---
+description: FlippersAI repo operating rules
+alwaysApply: true
+---
+
+# FlippersAI coding rules
+
+- Treat GitHub `main` as the source of truth. Inspect existing code before changing architecture.
+- Preserve the end-to-end product flow: Discover/Scout → Analyse → Verify/Negotiate → Buy → Inventory → Sell/Fulfil.
+- Do not weaken evidence standards just to produce a BUY verdict. VERIFY FIRST means seller-only evidence is genuinely required, not that research failed.
+- Exact listing facts outrank visual inference. Model must be exact or blank; never invent descriptive model names.
+- Every visible control must work. Remove or disable cosmetic/non-functional controls.
+- Prefer small, testable changes over adding another patch layer. If touching heavily layered Analyse code, consolidate when practical.
+- Before committing: run `npm run validate` and fix failures.
+- Never commit secrets, service-role keys, API tokens, `.env`, or `.dev.vars` files.
+- Browser code may only use publishable/public keys. Server-side secrets belong in environment variables or provider secret stores.
+- Keep desktop and mobile layouts stable; avoid header/nav reflow and layout jumps.
+- For long-running UI actions, show real progress/status rather than fake timers.
+- When uncertain about current backend schema, inspect migrations/functions before inventing fields.
+- For Cloudflare, prefer the existing Pages deployment and project MCP connection; do not migrate hosting without a concrete reason.
+- For Supabase, preserve existing project/database behaviour and inspect existing migrations/functions before schema changes.
+
+# Working sequence
+
+1. Read the relevant source/spec files.
+2. State the concrete cause/plan briefly.
+3. Make the smallest complete change.
+4. Run `npm run validate`.
+5. Inspect failures; do not stop at a queued/in-progress CI state.
+6. Commit/push only when local checks are green.
