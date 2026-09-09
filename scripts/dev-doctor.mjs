@@ -32,7 +32,14 @@ try {
 } catch { fail('.env is not ignored by git') }
 
 for (const name of ['OPENAI_API_KEY','SUPABASE_SERVICE_ROLE_KEY','CLOUDFLARE_API_TOKEN']) {
-  const tracked = execFileSync('git', ['grep','-l',`${name}=`,'HEAD'], { encoding:'utf8', stdio:['ignore','pipe','ignore'] }).trim()
+  let tracked = ''
+  try {
+    tracked = execFileSync('git', ['grep','-l',`${name}=`,'HEAD'], {
+      encoding:'utf8', stdio:['ignore','pipe','ignore']
+    }).trim()
+  } catch {
+    tracked = ''
+  }
   if (tracked) warn(`${name} assignment appears in tracked files: ${tracked}`)
 }
 
