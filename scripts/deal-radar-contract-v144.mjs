@@ -9,7 +9,7 @@ const hq = read('website-hq-v086.js')
 const fn = read('supabase/functions/deal-radar/index.ts')
 const sql = read('supabase/migrations/20260920120000_deal_radar_v1.sql')
 
-must(index.includes('deal-radar-v144.js?v=0.144.0'), 'Deal Radar is not loaded by index.html')
+must(index.includes('deal-radar-v144.js?v=0.144.1'), 'Deal Radar is not loaded by index.html')
 must(index.includes('analyse-prefill-v144.js?v=0.144.0'), 'Analyse prefill is not loaded by index.html')
 must(index.indexOf('analyse-fast-extraction-sync-v118.js') < index.indexOf('analyse-prefill-v144.js'), 'Prefill must load after the Analyse form layers')
 
@@ -29,5 +29,7 @@ must(fn.includes('Math.max(8, mid * 0.13)'), 'Radar selling-cost fallback must m
 must(/\['sold', 'active'\]\.includes\(x\.resale_basis\)/.test(fn), 'Estimates alone must never qualify a deal')
 must(/urls\.length < 2/.test(fn), 'A qualified deal needs at least two resale evidence sources')
 must(fn.includes('MIN_RUN_GAP_MINUTES'), 'Radar runs must be rate-limited server-side')
+
+must(/const SCHEDULE_ENABLED = (true|false)/.test(radar) && /SCHEDULE_ENABLED \? /.test(radar), 'Radar must only mention a next scheduled check when a schedule is enabled')
 
 console.log('Deal Radar contract v144 passed')

@@ -11,6 +11,8 @@ const money = v => v === null || v === undefined || !Number.isFinite(Number(v)) 
 const pct = v => v === null || v === undefined || !Number.isFinite(Number(v)) ? '—' : `${Math.round(Number(v))}%`
 const WINDOW_HOURS = 72
 const MIN_GAP_MIN = 45
+// Set true only once the twice-daily pg_cron job is actually enabled.
+const SCHEDULE_ENABLED = false
 const BASIS = { sold: 'Sold prices', active: 'Active listings', estimate: 'Estimate', none: 'No evidence' }
 
 let state = { deals: null, lastRun: null, error: '', polling: false, loading: false, unavailable: false }
@@ -111,7 +113,7 @@ function runLine() {
   const s = r.stats || {}
   const when = ago(r.finished_at || r.started_at)
   if (r.status === 'error') return `Last check failed ${when}`
-  return `Last checked ${when}${Number.isFinite(s.fetched) ? ` · ${s.fetched} deals scanned, ${s.evaluated ?? 0} price-checked` : ''} · next check ${nextScheduled()}`
+  return `Last checked ${when}${Number.isFinite(s.fetched) ? ` · ${s.fetched} deals scanned, ${s.evaluated ?? 0} price-checked` : ''}${SCHEDULE_ENABLED ? ` · next check ${nextScheduled()}` : ''}`
 }
 
 function canCheck() {
@@ -124,6 +126,7 @@ function canCheck() {
 function body() {
   if (state.error) return `<div class="radar-empty"><strong>Deal Radar couldn't load.</strong> ${esc(state.error)}</div>`
   if (state.deals === null) return `<div class="radar-empty">Loading today's flips…</div>`
+  if (!state.deals.length && (state.polling || state.lastRun?.status === 'running')) return `<div class="radar-empty"><strong>Checking the latest deals…</strong> This takes about 2 minutes. Results appear here automatically.</div>`
   if (!state.deals.length) {
     if (!state.lastRun) return `<div class="radar-empty"><strong>Deal Radar hasn't run yet.</strong> It checks Australian retail deals against current resale prices and only shows items with a real profit margin.</div>`
     return `<div class="radar-empty"><strong>Nothing passed the profit bar in the last ${WINDOW_HOURS} hours.</strong> Radar only shows deals where resale evidence supports at least A$25 or 20% profit after fees. Meanwhile, use Analyse on any listing you find.</div>`
@@ -137,12 +140,15 @@ function render() {
   // Backend not deployed/enabled: show nothing rather than a control that cannot work.
   if (state.unavailable) { $('#dealRadar')?.remove(); return }
   injectStyles()
+  const anchor = $('#platformIntelPersonal') || head
   let el = $('#dealRadar')
   if (!el) {
     el = document.createElement('section')
     el.id = 'dealRadar'
     el.className = 'radar'
-    head.insertAdjacentElement('afterend', el)
+    anchor.insertAdjacentElement('afterend', el)
+  } else if (anchor !== head && el.previousElementSibling !== anchor) {
+    anchor.insertAdjacentElement('afterend', el)
   }
   const check = canCheck()
   const r = state.lastRun
@@ -224,9 +230,14 @@ function analyse(d) {
 
 // Mount when the Intel page renders; reload data at most once per page visit.
 let mountedFor = null
+let headSeenAt = 0
 function mount() {
   const head = $('.community-head')
-  if (!head) { mountedFor = null; return }
+  if (!head) { mountedFor = null; headSeenAt = 0; return }
+  // Wait briefly for the 'For you' panel so Radar is placed once, below it, without a jump.
+  if (!headSeenAt) { headSeenAt = Date.now(); setTimeout(mount, 2600) }
+  if (!$('#platformIntelPersonal') && Date.now() - headSeenAt < 2500) return
+  if ($('#dealRadar') && $('#platformIntelPersonal') && $('#dealRadar').previousElementSibling !== $('#platformIntelPersonal')) render()
   if (!$('#dealRadar') && !state.unavailable) render()
   if (mountedFor !== head) { mountedFor = head; state.deals = null; render(); load() }
 }
