@@ -1,0 +1,236 @@
+// v0.144: Deal Radar on the Intel page ("Today's flips").
+// Reads qualified deals written by the deal-radar Edge Function (radar_deals,
+// RLS: authenticated read of qualified rows only). "Check now" calls the
+// function, which rate-limits itself server-side. Every control does real work.
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4'
+
+const supabase = createClient('https://msmpigerejpxepkylkxz.supabase.co', 'sb_publishable_PtTF2JaOtkV86zDg_Vf-bw_Vg0nCSpZ')
+const $ = (s, r = document) => r.querySelector(s)
+const esc = (v = '') => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+const money = v => v === null || v === undefined || !Number.isFinite(Number(v)) ? '—' : new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(Number(v))
+const pct = v => v === null || v === undefined || !Number.isFinite(Number(v)) ? '—' : `${Math.round(Number(v))}%`
+const WINDOW_HOURS = 72
+const MIN_GAP_MIN = 45
+const BASIS = { sold: 'Sold prices', active: 'Active listings', estimate: 'Estimate', none: 'No evidence' }
+
+let state = { deals: null, lastRun: null, error: '', polling: false, loading: false, unavailable: false }
+
+function ago(iso) {
+  if (!iso) return ''
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000))
+  if (m < 60) return `${m} min ago`
+  const h = Math.round(m / 60)
+  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`
+}
+
+function nextScheduled() {
+  // 08:00 and 18:00 Melbourne time (UTC+10 schedule).
+  const now = new Date()
+  const utcH = now.getUTCHours() + now.getUTCMinutes() / 60
+  const slots = [8, 22]
+  const next = slots.find(h => h > utcH)
+  return next === 8 ? '6pm' : next === 22 ? '8am' : '6pm'
+}
+
+function injectStyles() {
+  if ($('#dealRadarStyles')) return
+  const s = document.createElement('style')
+  s.id = 'dealRadarStyles'
+  s.textContent = `
+  .radar{margin:0 0 28px;display:flex;flex-direction:column;gap:14px}
+  .radar-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .radar-head h2{margin:4px 0 4px;font-size:22px;letter-spacing:-.01em}
+  .radar-head p{margin:0;color:var(--muted);font-size:14px;line-height:1.45;max-width:620px}
+  .radar-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+  .radar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .radar-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+  .radar-card h3{margin:0;font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+  .radar-sub{margin:2px 0 0;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+  .radar-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .radar-metrics div{background:var(--soft);border-radius:var(--radius-sm);padding:8px 10px;min-width:0}
+  .radar-metrics small{display:block;color:var(--muted);font-size:11px;letter-spacing:.02em}
+  .radar-metrics b{display:block;font-size:15px;margin-top:2px;white-space:nowrap}
+  .radar-metrics .pos{color:var(--green)}
+  .radar-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .radar-chip{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--soft);color:var(--muted);border:1px solid var(--line)}
+  .radar-chip.good{background:var(--green-soft);color:var(--green);border-color:transparent}
+  .radar-chip.warn{background:var(--amber-soft);color:var(--amber);border-color:transparent}
+  .radar-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+  .radar-actions .button{flex:1 1 auto;justify-content:center}
+  .radar-card details{font-size:13px;color:var(--ink)}
+  .radar-card summary{cursor:pointer;color:var(--muted)}
+  .radar-card details ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+  .radar-card details a{color:inherit;overflow-wrap:anywhere}
+  .radar-card details p{margin:8px 0 0;line-height:1.45}
+  .radar-empty{border:1px dashed var(--line);border-radius:var(--radius);padding:20px;color:var(--muted);font-size:14px;line-height:1.5}
+  .radar-empty strong{color:var(--ink)}
+  @media (max-width:520px){.radar-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.radar-actions .button{flex:1 1 100%}}
+  `
+  document.head.appendChild(s)
+}
+
+function card(d, i) {
+  const basisClass = d.resale_basis === 'sold' ? 'good' : 'warn'
+  const posted = d.posted_at ? ago(d.posted_at) : ''
+  const sub = [d.store, posted && `posted ${posted}`].filter(Boolean).join(' · ')
+  const risks = (Array.isArray(d.risks) ? d.risks : []).slice(0, 2)
+  const evidence = (Array.isArray(d.evidence) ? d.evidence : []).filter(e => /^https?:\/\//.test(e?.url || ''))
+  return `<article class="radar-card" data-radar-index="${i}">
+    <div><h3>${esc(d.product_name || d.title)}</h3>${sub ? `<p class="radar-sub">${esc(sub)}</p>` : ''}</div>
+    <div class="radar-metrics">
+      <div><small>Buy</small><b>${money(d.buy_price)}</b></div>
+      <div><small>Resale</small><b>${money(d.resale_mid)}</b></div>
+      <div><small>Profit</small><b class="pos">${money(d.expected_profit)}</b></div>
+      <div><small>ROI</small><b>${pct(d.roi_percent)}</b></div>
+    </div>
+    <div class="radar-chips">
+      <span class="radar-chip ${basisClass}">${esc(BASIS[d.resale_basis] || 'Evidence')}</span>
+      <span class="radar-chip">${esc(`${d.confidence ?? 0}% confidence`)}</span>
+      ${d.demand && d.demand !== 'unknown' ? `<span class="radar-chip">${esc(`${d.demand[0].toUpperCase()}${d.demand.slice(1)} demand`)}</span>` : ''}
+      ${risks.map(r => `<span class="radar-chip warn">${esc(r)}</span>`).join('')}
+    </div>
+    <details><summary>Evidence and maths</summary>
+      <ul>
+        <li>Resale range ${money(d.resale_low)}–${money(d.resale_high)} · selling costs ${money(d.selling_costs)}${d.buy_shipping ? ` · delivery ${money(d.buy_shipping)}` : ''}</li>
+        <li>Max buy for target profit: ${money(d.max_buy)}${d.sell_time_days ? ` · typical sell time ~${esc(d.sell_time_days)} days` : ''}</li>
+        ${evidence.map(e => `<li><a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.source || 'Source')}</a>${e.price_aud ? ` — ${money(e.price_aud)}` : ''}${e.kind ? ` (${esc(e.kind)})` : ''}</li>`).join('')}
+      </ul>
+      ${d.summary ? `<p>${esc(d.summary)}</p>` : ''}
+    </details>
+    <div class="radar-actions">
+      <button type="button" class="button primary" data-radar-analyse="${i}">Analyse</button>
+      <a class="button secondary" href="${esc(d.store_url || d.source_url)}" target="_blank" rel="noopener noreferrer">Open deal</a>
+    </div>
+  </article>`
+}
+
+function runLine() {
+  const r = state.lastRun
+  if (!r) return 'Not checked yet'
+  if (r.status === 'running') return 'Checking deals now…'
+  const s = r.stats || {}
+  const when = ago(r.finished_at || r.started_at)
+  if (r.status === 'error') return `Last check failed ${when}`
+  return `Last checked ${when}${Number.isFinite(s.fetched) ? ` · ${s.fetched} deals scanned, ${s.evaluated ?? 0} price-checked` : ''} · next check ${nextScheduled()}`
+}
+
+function canCheck() {
+  const r = state.lastRun
+  if (state.polling || r?.status === 'running') return false
+  if (!r) return true
+  return Date.now() - Date.parse(r.started_at) > MIN_GAP_MIN * 60000
+}
+
+function body() {
+  if (state.error) return `<div class="radar-empty"><strong>Deal Radar couldn't load.</strong> ${esc(state.error)}</div>`
+  if (state.deals === null) return `<div class="radar-empty">Loading today's flips…</div>`
+  if (!state.deals.length) {
+    if (!state.lastRun) return `<div class="radar-empty"><strong>Deal Radar hasn't run yet.</strong> It checks Australian retail deals against current resale prices and only shows items with a real profit margin.</div>`
+    return `<div class="radar-empty"><strong>Nothing passed the profit bar in the last ${WINDOW_HOURS} hours.</strong> Radar only shows deals where resale evidence supports at least A$25 or 20% profit after fees. Meanwhile, use Analyse on any listing you find.</div>`
+  }
+  return `<div class="radar-grid">${state.deals.map(card).join('')}</div>`
+}
+
+function render() {
+  const head = $('.community-head')
+  if (!head) return
+  // Backend not deployed/enabled: show nothing rather than a control that cannot work.
+  if (state.unavailable) { $('#dealRadar')?.remove(); return }
+  injectStyles()
+  let el = $('#dealRadar')
+  if (!el) {
+    el = document.createElement('section')
+    el.id = 'dealRadar'
+    el.className = 'radar'
+    head.insertAdjacentElement('afterend', el)
+  }
+  const check = canCheck()
+  const r = state.lastRun
+  const checkTitle = check ? 'Check the latest deals now (takes about 2 minutes)' : (state.polling || r?.status === 'running') ? 'A check is running' : `Checked ${ago(r?.started_at)} — available again ${MIN_GAP_MIN} minutes after the last check`
+  el.innerHTML = `<div class="radar-head"><div><span class="eyebrow">DEAL RADAR</span><h2>Today's flips</h2><p>New retail deals checked against Australian resale prices. Only items with evidence of real profit after fees make it here.</p></div>
+    <div class="radar-meta"><span>${esc(runLine())}</span><button type="button" class="button secondary" id="radarCheck" ${check ? '' : 'disabled'} title="${esc(checkTitle)}">${state.polling || r?.status === 'running' ? 'Checking…' : 'Check now'}</button></div></div>
+    ${body()}`
+  $('#radarCheck', el)?.addEventListener('click', checkNow)
+  el.querySelectorAll('[data-radar-analyse]').forEach(b => b.addEventListener('click', () => analyse(state.deals[Number(b.dataset.radarAnalyse)])))
+}
+
+async function load() {
+  if (state.loading) return
+  state.loading = true
+  try {
+    const { data: session } = await supabase.auth.getSession()
+    if (!session?.session) { state.deals = []; state.error = 'Sign in to see Deal Radar.'; return }
+    const since = new Date(Date.now() - WINDOW_HOURS * 3600000).toISOString()
+    const [deals, runs] = await Promise.all([
+      supabase.from('radar_deals').select('*').gte('checked_at', since).order('expected_profit', { ascending: false }).limit(24),
+      supabase.from('radar_runs').select('*').order('started_at', { ascending: false }).limit(1)
+    ])
+    if (deals.error) throw deals.error
+    const now = Date.now()
+    state.deals = (deals.data || []).filter(d => !d.expires_at || Date.parse(d.expires_at) > now).slice(0, 12)
+    state.lastRun = runs.data?.[0] || null
+    state.error = ''
+  } catch (e) {
+    if (/does not exist|schema cache|relation/i.test(String(e?.message))) state.unavailable = true
+    state.error = e?.message || 'Please refresh and try again.'
+    state.deals = []
+  } finally {
+    state.loading = false
+    render()
+  }
+}
+
+async function checkNow() {
+  if (!canCheck()) return
+  state.polling = true
+  render()
+  try {
+    const { data, error } = await supabase.functions.invoke('deal-radar', { body: { trigger: 'manual' } })
+    if (error || data?.ok === false) throw new Error(data?.error || error?.message || 'Check failed')
+    for (let i = 0; i < 24; i++) {
+      await new Promise(r => setTimeout(r, 10000))
+      const { data: runs } = await supabase.from('radar_runs').select('*').order('started_at', { ascending: false }).limit(1)
+      state.lastRun = runs?.[0] || state.lastRun
+      if (state.lastRun?.status !== 'running') break
+      render()
+    }
+  } catch (e) {
+    state.error = e?.message || 'Check failed'
+  } finally {
+    state.polling = false
+    state.deals = null
+    render()
+    await load()
+  }
+}
+
+function analyse(d) {
+  if (!d) return
+  const payload = {
+    title: d.product_name || d.title,
+    price: d.buy_price,
+    currency: 'AUD',
+    url: d.store_url || d.source_url,
+    platform: 'other',
+    condition: 'New (retail purchase)',
+    shipping_cost: d.buy_shipping ?? '',
+    extra_info: `Retail deal${d.store ? ` from ${d.store}` : ''} found by Deal Radar: ${d.title} (${d.source_url})`,
+    source_label: 'Deal Radar'
+  }
+  try { sessionStorage.setItem('flippers:analyse-prefill', JSON.stringify(payload)) } catch {}
+  document.querySelector('[data-nav="analyse"]')?.click()
+  window.dispatchEvent(new CustomEvent('flippers:analyse-prefill'))
+}
+
+// Mount when the Intel page renders; reload data at most once per page visit.
+let mountedFor = null
+function mount() {
+  const head = $('.community-head')
+  if (!head) { mountedFor = null; return }
+  if (!$('#dealRadar') && !state.unavailable) render()
+  if (mountedFor !== head) { mountedFor = head; state.deals = null; render(); load() }
+}
+const app = document.getElementById('app')
+let t
+if (app) new MutationObserver(() => { clearTimeout(t); t = setTimeout(mount, 80) }).observe(app, { childList: true, subtree: true })
+mount()
