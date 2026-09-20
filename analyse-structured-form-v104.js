@@ -9,6 +9,10 @@ let evidenceFiles=[]
 let analysing=false
 let extracting=false
 let extractTimer=null
+// v0.142: evidence revision. A scan started for an older set of images (or before
+// "Analyse another item") must never fill the current form.
+let evidenceRevision=0
+window.addEventListener('flippers:analyse-reset',()=>{evidenceRevision++;clearTimeout(extractTimer)})
 
 const toDataUrl=file=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(file)})
 const finite=v=>v===null||v===undefined||v===''?null:(Number.isFinite(Number(v))?Number(v):null)
@@ -39,11 +43,11 @@ function renderTray(){
  const tray=$('#manualEvidenceTray');if(!tray)return
  tray.innerHTML=evidenceFiles.length?evidenceFiles.map((f,i)=>`<div class="manual-evidence-thumb"><img data-preview="${i}" alt="Evidence ${i+1}"><button type="button" data-remove="${i}">×</button><small>${esc(f.name||`Image ${i+1}`)}</small></div>`).join(''):`<div class="manual-evidence-empty">No images added yet.</div>`
  evidenceFiles.forEach((f,i)=>{const img=tray.querySelector(`[data-preview="${i}"]`);if(!img)return;const u=URL.createObjectURL(f);img.src=u;img.onload=()=>URL.revokeObjectURL(u)})
- tray.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{evidenceFiles.splice(Number(b.dataset.remove),1);syncInput();renderTray()})
+ tray.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{evidenceFiles.splice(Number(b.dataset.remove),1);evidenceRevision++;syncInput();renderTray()})
  const c=$('#manualEvidenceCount');if(c)c.textContent=`${evidenceFiles.length}/10 images`
 }
 function syncInput(){const input=$('#manualEvidenceInput');if(!input)return;const dt=new DataTransfer();evidenceFiles.forEach(f=>dt.items.add(f));input.files=dt.files}
-function addFiles(files){for(const f of [...files]){if(!f.type?.startsWith('image/'))continue;if(evidenceFiles.length>=10)break;evidenceFiles.push(f)}syncInput();renderTray();scheduleExtraction()}
+function addFiles(files){for(const f of [...files]){if(!f.type?.startsWith('image/'))continue;if(evidenceFiles.length>=10)break;evidenceFiles.push(f)}evidenceRevision++;syncInput();renderTray();scheduleExtraction()}
 
 function setField(name,value){
  const el=$(`[name="${name}"]`);if(!el||value===null||value===undefined||value==='')return
@@ -56,11 +60,13 @@ function setField(name,value){
 
 async function extractFromImages(){
  if(extracting||!evidenceFiles.length)return
+ const revision=evidenceRevision
  extracting=true;const status=$('#autoExtractStatus');if(status){status.className='auto-status';status.textContent='Reading screenshots and filling visible listing details…'}
  try{
   const images=[];for(const f of evidenceFiles.slice(0,10))images.push(await toDataUrl(f))
   const platform=String($('[name="platform"]')?.value||'')
   const{data,error}=await supabase.functions.invoke('listing-visual-extraction',{body:{images,platform}})
+  if(revision!==evidenceRevision)return
   if(error||data?.error)throw new Error(error?.message||data?.error||'Could not read screenshots')
   const x=data.extraction||{}
   setField('platform',({Facebook:'facebook','Facebook Marketplace':'facebook',Depop:'depop',eBay:'ebay',Gumtree:'gumtree',Vinted:'vinted'})[x.marketplace]||String(x.marketplace||'').toLowerCase())
@@ -69,7 +75,7 @@ async function extractFromImages(){
   setField('seller',x.seller_name);setField('seller_rating',x.seller_rating);setField('seller_reviews',x.seller_review_count);setField('location',x.listing_location);setField('condition',x.condition);setField('description',x.description);setField('extra_info',x.extra_info)
   const known=[x.listing_title,x.description,x.condition,x.seller_name,x.colour,x.brand,x.model,x.listing_location,x.extra_info].map(v=>String(v||'').toLowerCase()).filter(Boolean).join('\n');const details=Array.isArray(x.visible_item_details)?x.visible_item_details.map(v=>String(v||'').trim()).filter(v=>v&&!known.includes(v.toLowerCase())&&!/^(?:size|seller|price|ask|condition)\b/i.test(v)&&!/^[A-Z]{0,3}\$?\s*\d[\d,.]*$|[$£€]\s*\d/.test(v)&&!/^(?:depop|ebay|facebook(?: marketplace)?|gumtree|vinted)$/i.test(v)).join('; '):'';if(details){const extra=$('[name="extra_info"]');if(extra&&!extra.value) setField('extra_info',details)}
   if(status){status.className='auto-status good';status.textContent=`Screenshots read. FlippersAI filled the visible fields${x.extraction_confidence!=null?` (${Math.round(Number(x.extraction_confidence)*100)}% extraction confidence)`:''}. Review and edit anything that looks wrong.`}
- }catch(e){if(status){status.className='auto-status warn';status.textContent=`Could not auto-fill these screenshots: ${e.message||e}. You can still enter the details manually.`}}finally{extracting=false}
+ }catch(e){if(revision!==evidenceRevision)return;if(status){status.className='auto-status warn';status.textContent=`Could not auto-fill these screenshots: ${e.message||e}. You can still enter the details manually.`}}finally{extracting=false;if(revision!==evidenceRevision&&evidenceFiles.length)scheduleExtraction()}
 }
 function scheduleExtraction(){clearTimeout(extractTimer);extractTimer=setTimeout(extractFromImages,450)}
 

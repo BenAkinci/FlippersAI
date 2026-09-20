@@ -1,0 +1,5 @@
+project_id = "msmpigerejpxepkylkxz"
+
+[functions.listing-visual-extraction]
+verify_jwt = true
+entrypoint = "./functions/listing-visual-extraction/index.ts"

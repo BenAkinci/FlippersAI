@@ -3,15 +3,19 @@
   window.__flippersFastExtractionSyncV118 = true
 
   let latestExtraction = null
+  // v0.142: results from a scan started before "Analyse another item" are discarded.
+  let resetEpoch = 0
+  window.addEventListener('flippers:analyse-reset', () => { resetEpoch++; latestExtraction = null })
 
   const priorFetch = window.fetch.bind(window)
   window.fetch = async (...args) => {
+    const epoch = resetEpoch
     const response = await priorFetch(...args)
     try {
       const target = String(args?.[0]?.url || args?.[0] || '')
       if (target.includes('/functions/v1/listing-visual-extraction')) {
         response.clone().json().then(payload => {
-          if (!payload?.extraction) return
+          if (!payload?.extraction || epoch !== resetEpoch) return
           latestExtraction = payload.extraction
           queueMicrotask(() => {
             const form = document.getElementById('newDeal')
