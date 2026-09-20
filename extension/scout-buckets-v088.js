@@ -71,5 +71,4 @@ function schedule(){clearTimeout(timer);timer=setTimeout(()=>refresh().catch(()=
 document.addEventListener('flippers:scout-rendered',schedule)
 document.addEventListener('flippers:candidate-updated',schedule)
 document.addEventListener('click',e=>{if(e.target.closest?.('.ext-nav [data-view="scan"]'))setTimeout(schedule,100)},true)
-new MutationObserver(ms=>{const external=ms.some(m=>[...m.addedNodes].some(n=>n.nodeType===1&&!n.closest?.('#v088ScoutBuckets')&&!n.matches?.('#v088ScoutBuckets')));if(external&&$('.scout-page-head[data-scout-session]'))schedule()}).observe(document.getElementById('app'),{childList:true,subtree:true})
 schedule()

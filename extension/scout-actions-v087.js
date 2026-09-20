@@ -20,6 +20,6 @@ async function refresh(){if(busy)return;busy=true;try{await loadRows();decorate(
 
 document.addEventListener('click',e=>{const card=e.target.closest?.('.scout-candidate[data-candidate]');if(!card)return;const c=rowFor(card);if(!c)return;const saveBtn=e.target.closest?.('[data-save-candidate]');if(saveBtn){e.preventDefault();e.stopImmediatePropagation();save(c,saveBtn).catch(err=>toast(err.message));return}const analyseBtn=e.target.closest?.('[data-analyse-candidate]');if(analyseBtn){e.preventDefault();e.stopImmediatePropagation();analyse(c,analyseBtn).catch(err=>toast(err.message));return}if(e.target.closest?.('[data-v087-edit]')){e.preventDefault();edit(c).catch(err=>toast(err.message))}},true)
 
-new MutationObserver(ms=>{if(!ms.some(m=>m.addedNodes.length||m.removedNodes.length))return;clearTimeout(timer);timer=setTimeout(refresh,90)}).observe(document.getElementById('app'),{childList:true,subtree:true})
+document.addEventListener('flippers:scout-rendered',()=>{clearTimeout(timer);timer=setTimeout(refresh,60)})
 document.addEventListener('flippers:candidate-updated',()=>{clearTimeout(timer);timer=setTimeout(refresh,60)})
 refresh()

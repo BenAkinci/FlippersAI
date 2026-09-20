@@ -7,6 +7,7 @@ const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'
 const money=v=>v==null||v===''||Number.isNaN(Number(v))?'—':new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD',maximumFractionDigits:0}).format(Number(v))
 const ACTIVE_SCOUT_KEY='flippers_active_scout_session_v068'
 const MAX_FOUND_PER_ROUND=25
+const STALE_SCOUT_MS=5*60*1000
 let scout=null,handlingScan=false,restoring=false,renderTimer=null
 
 function toast(message){$('.toast')?.remove();const el=document.createElement('div');el.className='toast';el.textContent=message;document.body.appendChild(el);setTimeout(()=>el.remove(),2600)}
@@ -24,7 +25,7 @@ function candidateMarkup(c){
     <label class="scout-select" title="Select this shown listing"><input type="checkbox" data-select-candidate ${c.selected?'checked':''}><span class="v070-select-label">Select</span></label>
     <div class="scout-thumb">${c.thumbnail_url?`<img loading="lazy" decoding="async" src="${esc(c.thumbnail_url)}" alt="">`:`<div class="scout-thumb-placeholder">•</div>`}</div>
     <div class="scout-candidate-main">
-      <div class="scout-candidate-title-row"><strong>${esc(c.title||'Untitled listing')}</strong><span class="scout-rec">Queued</span></div>
+      <div class="scout-candidate-title-row">${c.source_url?`<a class="v088-source-title" href="${esc(c.source_url)}" target="_blank" rel="noopener">${esc(c.title||'Untitled listing')}</a>`:`<strong>${esc(c.title||'Untitled listing')}</strong>`}<span class="scout-rec">Queued</span></div>
       <div class="scout-meta">${money(c.asking_price)}${c.location?` · ${esc(c.location)}`:''}</div>
       <div class="scout-quick-note">Waiting for Scout screening.</div>
       <details class="scout-individual-details"><summary>Listing details</summary><div class="scout-detail-grid">
@@ -37,7 +38,7 @@ function candidateMarkup(c){
   </article>`
 }
 function scanViewActive(){return Boolean($('.ext-nav [data-view="scan"].active'))}
-async function persistScout(){if(!scout?.session?.id)return;await chrome.storage.local.set({[ACTIVE_SCOUT_KEY]:{sessionId:scout.session.id,tabId:scout.tabId||null,platform:scout.platform||scout.session.platform||'other',query:scout.query||scout.session.query_text||'',pageUrl:scout.pageUrl||scout.session.source_url||'',savedAt:Date.now()}})}
+async function persistScout(){if(!scout?.session?.id)return;await chrome.storage.local.set({[ACTIVE_SCOUT_KEY]:{sessionId:scout.session.id,tabId:scout.tabId||null,platform:scout.platform||scout.session.platform||'other',query:scout.query||scout.session.query_text||'',pageUrl:scout.pageUrl||scout.session.source_url||'',savedAt:Date.now(),lastLiveAt:Date.now(),interrupted:false}})}
 function currentRound(){return Math.max(1,...(scout?.candidates||[]).map(c=>Number(c.raw_capture?.round_index||1)))}
 function roundRows(){const r=currentRound();return (scout?.candidates||[]).filter(c=>Number(c.raw_capture?.round_index||1)===r)}
 function renderScout(){
@@ -47,12 +48,12 @@ function renderScout(){
   main.innerHTML=`<section class="page-head scout-page-head" data-scout-session="${esc(scout.session.id)}"><div><span class="eyebrow">MARKETPLACE SCOUT</span><h1>${esc(titleForScout(scout))}</h1><p>FlippersAI screens a focused round quickly, rates every screened listing on the marketplace, and only surfaces worthwhile opportunities here.</p></div><button class="button soft small scout-action" id="scoutRescan">Start new scan</button></section>
     <section class="scout-capture-source"><div><span>SOURCE</span><strong>${esc(label(scout.platform))}</strong></div><div><span>DETECTED ON PAGE</span><strong>${detected}</strong></div><div><span>THIS ROUND</span><strong>${round}</strong></div></section>
     <section class="scout-summary"><div><span>SCREENING</span><strong>${round}</strong></div><div><span>RATED</span><strong>0</strong></div><div><span>WORKING</span><strong>0</strong></div><div class="scout-summary-good"><span>SHORTLIST</span><strong>0</strong></div><div><span>FILTERED OUT</span><strong>0</strong></div></section>
-    <section class="scout-insight scanning"><strong>Starting Scout…</strong><span>Preparing the first shared-market batch.</span></section>
+    <section class="scout-insight ${scout.interrupted?'':'scanning'}"><strong>${scout.interrupted?'Previous Scout interrupted':'Starting Scout…'}</strong><span>${scout.interrupted?`${scout.candidates.filter(c=>['rated','analysed'].includes(c.scan_status)).length}/${scout.candidates.length} rated · resume, restart or discard this Scout.`:'Preparing the first shared-market batch.'}</span></section>
     <div class="scout-toolbar"><label class="scout-select-all"><input type="checkbox" id="scoutSelectAll"><span>Select all shown</span></label><span class="top-spacer"></span><button class="button secondary small scout-action" id="scanMoreResults">Find next listings ↓</button></div>
     <div class="scout-list">${scout.candidates.map(candidateMarkup).join('')}</div>
     <div class="scout-sticky-actions"><button class="button secondary scout-action" id="openScoutWebsite">Open Scout on website</button></div>
     <div class="scout-footnote">Filtered-out listings are not shown in this shortlist, but their ratings stay on the marketplace page and in scan history. This Scout remains here until you choose Start new scan.</div>`
-  bindUi();document.dispatchEvent(new CustomEvent('flippers:scout-rendered',{detail:{sessionId:scout.session.id,round:currentRound()}}))
+  bindUi();persistScout().catch(()=>{});document.dispatchEvent(new CustomEvent('flippers:scout-rendered',{detail:{sessionId:scout.session.id,round:currentRound()}}))
 }
 function findCandidate(el){const id=el.closest('[data-candidate]')?.dataset.candidate;return scout?.candidates.find(c=>String(c.id)===String(id))||null}
 async function updateCounts(){if(!scout?.session?.id)return;const selected=scout.candidates.filter(c=>c.selected).length;await api.update('scout_sessions',`id=eq.${scout.session.id}`,{candidate_count:scout.candidates.length,selected_count:selected,updated_at:new Date().toISOString()}).catch(()=>{})}
@@ -84,11 +85,24 @@ async function mergeNew(collection){
   const metadata={...(scout.session.metadata||{}),total_detected:(collection.candidates||[]).length,current_round:round};scout.session.metadata=metadata
   await api.update('scout_sessions',`id=eq.${scout.session.id}`,{candidate_count:scout.candidates.length,metadata,updated_at:new Date().toISOString()}).catch(()=>{});await persistScout();renderScout();return fresh.length
 }
-async function scanMoreResults(){if(!scout?.tabId)return toast('Return to the marketplace results page first.');try{const result=await chrome.runtime.sendMessage({type:'FLIPPERS_SCROLL_COLLECTION',tabId:scout.tabId});if(!result?.ok)throw new Error(result?.error||'Could not scan more results.');const added=await mergeNew(result.data);toast(added?`${added} new listings added to the next Scout round`:'No new listings detected yet. Scroll a little further and try again.')}catch(error){toast(error.message)}}
+async function scanMoreResults(){
+  try{
+    const stored=(await chrome.storage.local.get(ACTIVE_SCOUT_KEY).catch(()=>({})))[ACTIVE_SCOUT_KEY];
+    const tabId=scout?.tabId||stored?.tabId||null;
+    if(!tabId)return toast('The marketplace results tab is no longer connected to this Scout.');
+    try{await chrome.tabs.get(tabId)}catch{return toast('The marketplace results tab has been closed. Reopen it to continue this Scout.')}
+    const result=await chrome.runtime.sendMessage({type:'FLIPPERS_SCROLL_COLLECTION',tabId});
+    if(!result?.ok)throw new Error(result?.error||'Could not scan more results.');
+    const added=await mergeNew(result.data);
+    toast(added?`${added} new listings added to this Scout`:'No new listings detected yet. Scroll further and try again.')
+  }catch(error){toast(error.message)}
+}
 async function handleScan(button){if(handlingScan)return;handlingScan=true;const original=button.onclick;try{const result=await chrome.runtime.sendMessage({type:'FLIPPERS_SCAN_COLLECTION_ACTIVE'});if(!result?.ok)throw new Error(result?.error||'Could not read this marketplace page.');const data=result.data||{};if(isSingleUrl(data.pageUrl)){await original?.call(button);return}if(data.mode==='collection'){if(!(data.candidates||[]).length){toast('No listing cards are visible yet. Scroll slightly and scan again.');return}await startCollection(data);return}await original?.call(button)}catch(error){toast(error.message)}finally{handlingScan=false}}
-async function restoreScout(){if(restoring||scout)return;restoring=true;try{const stored=await chrome.storage.local.get(ACTIVE_SCOUT_KEY),saved=stored[ACTIVE_SCOUT_KEY];if(!saved?.sessionId)return;const sessions=await api.select('scout_sessions',`select=*&id=eq.${encodeURIComponent(saved.sessionId)}&limit=1`).catch(()=>[]),session=sessions?.[0];if(!session){await chrome.storage.local.remove(ACTIVE_SCOUT_KEY);return}const candidates=await api.select('scout_candidates',`select=*&session_id=eq.${encodeURIComponent(session.id)}&order=created_at.asc&limit=500`).catch(()=>[]);scout={session,candidates:(candidates||[]).map((r,i)=>({...r,order_index:r.raw_capture?.order_index??i,analysis:r.analysis||{}})),tabId:saved.tabId||null,platform:saved.platform||session.platform,query:saved.query||session.query_text||'',pageUrl:saved.pageUrl||session.source_url||''};if(scanViewActive())renderScout()}finally{restoring=false}}
+async function restoreScout(){if(restoring||scout)return;restoring=true;try{const stored=await chrome.storage.local.get(ACTIVE_SCOUT_KEY),saved=stored[ACTIVE_SCOUT_KEY];if(!saved?.sessionId)return;const sessions=await api.select('scout_sessions',`select=*&id=eq.${encodeURIComponent(saved.sessionId)}&limit=1`).catch(()=>[]),session=sessions?.[0];if(!session){await chrome.storage.local.remove(ACTIVE_SCOUT_KEY);return}const candidates=await api.select('scout_candidates',`select=*&session_id=eq.${encodeURIComponent(session.id)}&order=created_at.asc&limit=500`).catch(()=>[]);const sessionAt=Date.parse(session.updated_at||session.created_at||'')||0,lastLive=Math.max(Number(saved.lastLiveAt||saved.savedAt||0),sessionAt),interrupted=Boolean(saved.interrupted)||(Date.now()-lastLive>STALE_SCOUT_MS);scout={session,candidates:(candidates||[]).map((r,i)=>({...r,order_index:r.raw_capture?.order_index??i,analysis:r.analysis||{}})),tabId:saved.tabId||null,platform:saved.platform||session.platform,query:saved.query||session.query_text||'',pageUrl:saved.pageUrl||session.source_url||'',interrupted};if(interrupted)await chrome.storage.local.set({[ACTIVE_SCOUT_KEY]:{...saved,interrupted:true}});if(scanViewActive())renderScout()}finally{restoring=false}}
 function scheduleRestore(){clearTimeout(renderTimer);renderTimer=setTimeout(()=>{if(!scanViewActive())return;const rendered=$('.scout-page-head[data-scout-session]');if(scout){if(rendered?.dataset.scoutSession===String(scout.session?.id||''))return;renderScout()}else if(!rendered)restoreScout().catch(()=>{})},70)}
 document.addEventListener('click',event=>{const button=event.target.closest?.('#scanCurrent');if(!button)return;event.preventDefault();event.stopImmediatePropagation();handleScan(button)},true)
 document.addEventListener('click',event=>{const nav=event.target.closest?.('.ext-nav [data-view="scan"]');if(nav)setTimeout(scheduleRestore,0)},true)
 new MutationObserver(mutations=>{if(!scanViewActive())return;const meaningful=mutations.some(m=>!m.target.closest?.('.scout-page-head,.scout-list,.scout-summary,.scout-insight,.scout-loading-indicator,.scout-quality-mode,.scout-curation-controls,.scout-sticky-actions,.v070-bulk-bar'));if(meaningful&&!$('.scout-page-head[data-scout-session]'))scheduleRestore()}).observe(document.getElementById('app'),{childList:true,subtree:true})
 restoreScout().catch(()=>{})
+// v0.89.9: clear the old in-memory Scout before an in-place Start new scan.
+document.addEventListener('flippers:clear-scout-memory',()=>{scout=null})

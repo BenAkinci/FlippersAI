@@ -97,7 +97,7 @@ async function rescanAuthenticity(c,userEvidence=''){
   const data=await api.invoke('scout-enrich-listing',{capture,prior_analysis:prior,images,user_evidence:clean(userEvidence)})
   if(data?.error)throw new Error(data.error)
   const e=data.result||{}
-  const a={...prior,...e,user_evidence:clean(userEvidence)||prior.user_evidence||'',scout_enriched:true,scout_scan_depth:'enriched'}
+  const a={...prior,...e,overall_score:Number(e.opportunity_score??prior.overall_score??c.score??0),user_evidence:clean(userEvidence)||prior.user_evidence||'',scout_enriched:true,scout_scan_depth:'enriched'}
   const body={
     title:capture.title||c.title||null,asking_price:capture.askingPrice??c.asking_price??null,location:capture.location||c.location||null,
     condition:capture.condition||e.condition_label||c.condition||null,seller_name:capture.sellerName||c.seller_name||null,
@@ -154,6 +154,8 @@ async function act(message){
     if(message.fields?.title!==undefined)patch.title=clean(message.fields.title)||null
     if(message.fields?.asking_price!==undefined)patch.asking_price=money(message.fields.asking_price)
     if(message.fields?.location!==undefined)patch.location=clean(message.fields.location)||null
+    if(message.fields?.condition!==undefined)patch.condition=clean(message.fields.condition)||null
+    if(message.fields?.seller_name!==undefined)patch.seller_name=clean(message.fields.seller_name)||null
     const rows=await api.update('scout_candidates',`id=eq.${c.id}`,patch)
     return rows?.[0]||{...c,...patch}
   }

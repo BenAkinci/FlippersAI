@@ -14,5 +14,6 @@ async function sync(){
   cards.forEach(card=>{const c=map.get(String(card.dataset.candidate));if(!c)return;const raw=c.deep_capture?.description||c.deep_capture?.listingText||c.deep_capture?.visibleText||c.raw_capture?.raw_text||'';const category=c.raw_capture?.category_label||c.analysis?.category||card.dataset.smartCategory||'Other';let details=$('.scout-individual-details',card);if(!details){details=document.createElement('details');details.className='scout-individual-details';$('.scout-candidate-main',card)?.appendChild(details)}details.innerHTML=`<summary>Listing details</summary><div class="scout-detail-grid"><div><span>TITLE</span><strong>${value(c.title)}</strong></div><div><span>PRICE</span><strong>${money(c.asking_price)}</strong></div><div><span>LOCATION</span><strong>${value(c.location)}</strong></div><div><span>CONDITION</span><strong>${value(c.condition)}</strong></div><div><span>SELLER</span><strong>${value(c.seller_name)}</strong></div><div><span>CATEGORY</span><strong>${esc(category)}</strong></div></div>${raw?`<div class="scout-detail-description"><span>DESCRIPTION / CAPTURED DETAILS</span><p>${esc(short(raw))}</p></div>`:''}`})
 }
 function schedule(){clearTimeout(timer);timer=setTimeout(()=>sync().catch(()=>{}),150)}
-new MutationObserver(ms=>{if(ms.some(m=>!m.target.closest?.('.scout-individual-details')))schedule()}).observe(document.getElementById('app'),{childList:true,subtree:true})
+document.addEventListener('flippers:scout-rendered',schedule)
+document.addEventListener('flippers:candidate-updated',schedule)
 schedule()

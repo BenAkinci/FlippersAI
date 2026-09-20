@@ -20,5 +20,5 @@ async function refresh(){if(busy)return;const cards=$$('.v088-listing-card[data-
 function schedule(ms=80){clearTimeout(timer);timer=setTimeout(()=>refresh().catch(()=>{}),ms)}
 document.addEventListener('flippers:candidate-updated',()=>schedule(30))
 new MutationObserver(ms=>{if(ms.some(m=>m.addedNodes.length))schedule()}).observe(document.getElementById('app'),{childList:true,subtree:true})
-setInterval(()=>schedule(0),1800)
+
 schedule()

@@ -140,3 +140,20 @@ Stop the server and run `npm run dev` again. The dev server uses `Cache-Control:
 ### CI fails after local validation passes
 
 Open the failed GitHub Actions job and inspect the exact failing step/log. Fix that failure rather than rerunning blindly.
+
+## Build no longer patches source files (v0.143.0)
+
+Before v0.143.0, `npm run build`, `check:extension` and `package:extension` re-ran
+27 `scripts/patch-*.mjs` scripts against tracked files on every run. They were not
+idempotent: `validate` applied them twice, which corrupted the packaged extension
+(`$$(` became the undefined `$$$(` in `scout-orchestrator-v080.js`, plus duplicated
+lines/CSS), rewrote `package.json` to version 0.87/0.91, and left git status noisy.
+
+The extension files are now committed in their correct single-pass patched state and
+the patch scripts are no longer part of any npm script. They remain in `scripts/` as
+history only — **do not run them again**. Make extension changes directly in
+`extension/`. The contracts still run and must pass.
+
+Cloudflare Pages serves the repository files as committed (no build step), so root
+`app.js` is intentionally left unpatched — that is exactly what is live.
+`npm run validate` should leave `git status` unchanged; if it doesn't, stop and investigate.

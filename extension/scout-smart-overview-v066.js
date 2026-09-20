@@ -5,7 +5,7 @@
   const $=(s,r=document)=>r.querySelector(s)
   const $$=(s,r=document)=>[...r.querySelectorAll(s)]
   const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
-  let regionFilter='ALL',categoryFilter='ALL',timer=null
+  let regionFilter='ALL',categoryFilter='ALL',timer=null,lastHtml=''
 
   function inferRegion(value=''){
     const s=` ${String(value).toUpperCase()} `
@@ -35,7 +35,7 @@
     else bullets.push(`Listings currently fall into ${categoryNames[0]||'Other'}.`)
 
     let box=$('#smartScoutOverview');if(!box){box=document.createElement('section');box.id='smartScoutOverview';box.className='smart-scout-overview';head.insertAdjacentElement('afterend',box)}
-    box.innerHTML=`<div class="smart-overview-grid">
+    const html=`<div class="smart-overview-grid">
       <div><span>SOURCE</span><strong>${esc(source())}</strong></div>
       <div><span>LISTINGS SCANNED</span><strong>${all.length}</strong></div>
       <div><span>AREAS</span><strong>${regionNames.length?esc(regionNames.join(', ')):'Not detected'}</strong></div>
@@ -45,6 +45,7 @@
     ${regions.length?`<div class="smart-filter-row"><span>AREA</span><div>${chip('All','ALL',regionFilter==='ALL','region',all.length)}${regions.map(([n,c])=>chip(n,n,regionFilter===n,'region',c)).join('')}</div></div>`:''}
     <div class="smart-filter-row"><span>CATEGORY</span><div>${chip('All','ALL',categoryFilter==='ALL','category',all.length)}${categories.map(([n,c])=>chip(n,n,categoryFilter===n,'category',c)).join('')}</div></div>
     <div class="smart-filter-actions"><span>${visible.length} listing${visible.length===1?'':'s'} shown</span><button type="button" id="smartSelectVisible">Select shown only</button><button type="button" id="smartClearFilters">Clear filters</button></div>`
+    if(html!==lastHtml){box.innerHTML=html;lastHtml=html}
   }
 
   document.addEventListener('click',event=>{

@@ -359,7 +359,7 @@ async function saveScannedDeal(e) {
 
 async function runAnalysis(w, sellerUpdate = '') {
   const o = w.opportunities || state.opps.find(x => x.id === w.opportunity_id) || {}
-  const a = w.latest_analysis || latestAnalysis(w.opportunity_id) || {}
+  const a = w.latest_analysis || latestAnalysis(w.opportunity_id) || w.opportunities?.raw_listing?.analysis || {}
   const profile = state.bundle?.profile || {}
   const portfolio = state.bundle?.portfolio || {}
   const images = await api.analysisImages(w.opportunity_id)
@@ -397,6 +397,22 @@ function decisionCard(a) {
   return `<div class="decision ${recommendationClass(a.recommendation)}"><div class="decision-head"><div><span class="decision-label">${esc(recommendationLabel(a.recommendation))}</span>${structuredCopy(a.action_summary || a.next_action || 'Deal analysed')}</div><div class="score"><strong>${Math.round(Number(a.overall_score || 0))}</strong><span>/100</span></div></div><div class="money-grid"><div><span>ASK</span><strong>${money(a.seller_asking_price)}</strong></div><div><span>RESALE</span><strong>${money(a.resale_mid)}</strong></div><div><span>PROFIT</span><strong class="${Number(a.expected_profit || 0) >= 0 ? 'positive' : 'negative'}">${money(a.expected_profit)}</strong></div><div><span>MAX BUY</span><strong>${money(a.max_buy)}</strong></div></div><details class="details"><summary>Why this result</summary><div class="details-body"><div class="metric-line"><span>Confidence <b>${pct(a.valuation_confidence)}</b></span><span>ROI <b>${pct(a.expected_roi_percent)}</b></span><span>Sell time <b>${a.sell_time_mid_days ?? '—'}d</b></span></div>${a.evidence_summary ? `<p>${esc(a.evidence_summary)}</p>` : ''}${arr(a.action_cautions).length ? `<div class="notice warn">${arr(a.action_cautions).map(x => `• ${esc(x)}`).join('<br>')}</div>` : ''}</div></details></div>`
 }
 
+function importedDealAnalysis(w){return w?.latest_analysis||latestAnalysis(w?.opportunity_id)||w?.opportunities?.raw_listing?.analysis||null}
+async function normaliseImportedDeal(w){
+  if(!w?.id||!['capture_listing','verify_listing','analyse_deal'].includes(w.current_step)||!importedDealAnalysis(w))return
+  const key=`deal-normalise-${w.id}`;if(state.temp[key])return;state.temp[key]=true
+  try{
+    let current=w
+    for(let i=0;i<4&&['capture_listing','verify_listing','analyse_deal'].includes(current.current_step);i++){
+      const a=importedDealAnalysis(current)||{},o=current.opportunities||{}
+      const data=current.current_step==='capture_listing'?{captured:true,already_scanned:true,source:'saved_analysed_lead'}:current.current_step==='verify_listing'?{verified:true,asking_price:o.seller_asking_price??null,details_carried_forward:true,source:'saved_analysed_lead'}:{analysed:true,prior_analysis:true,recommendation:a.recommendation||null,source:'saved_analysed_lead'}
+      await api.rpc('advance_flip_step',{p_workflow_id:current.id,p_step_key:current.current_step,p_step_data:data})
+      const bundle=await api.workflowState();state.bundle=bundle;current=arr(bundle.workflows).find(x=>x.id===w.id)||current
+    }
+    render()
+  }catch(error){toast(error.message||'Could not prepare this deal')}finally{delete state.temp[key]}
+}
+
 function workPage() {
   const w = focusedWorkflow()
   if (!w) {
@@ -404,17 +420,18 @@ function workPage() {
   }
   state.focusWorkflowId = w.id
   state.focusOpportunityId = w.opportunity_id
+  if (['capture_listing','verify_listing','analyse_deal'].includes(w.current_step) && importedDealAnalysis(w)) setTimeout(() => normaliseImportedDeal(w), 0)
   const progress = arr(w.progress)
   const done = progress.filter(p => p.state === 'completed').length
   const percent = Math.round(done / 18 * 100)
   const o = w.opportunities || {}
-  const a = w.latest_analysis || latestAnalysis(w.opportunity_id) || {}
-  shell(`<section class="page-head"><div><span class="eyebrow">DEAL WORKSPACE</span><h1>${esc(o.listing_title || a.identified_name || 'Deal File')}</h1><p>${esc(MARKETPLACE_LABELS[o.source_platform] || o.source_platform || 'Marketplace')} · ${money(o.seller_asking_price)}${o.listing_location ? ` · ${esc(o.listing_location)}` : ''}</p></div><button class="button secondary small" id="handoffSite">Open on website ${icon('web',12)}</button></section><div class="focused-card workflow-card"><div class="workflow-top"><span class="stage">Step ${w.current_step_order} of 18</span><span>${percent}% complete</span></div><div class="progress"><span style="width:${percent}%"></span></div><div class="next-copy"><span class="eyebrow">NEXT ACTION</span><h2>${esc(w.step?.title || STEP_NAMES[w.current_step] || 'Continue')}</h2>${structuredCopy(w.step?.instruction || w.step?.teach_instruction || '')}</div>${a.recommendation ? decisionCard(a) : ''}<div class="workflow-action">${stepAction(w)}</div><div class="workflow-footer"><button class="text-button journey-toggle" id="journeyToggle">View ${done}/18 completed</button>${w.inventory_item_id ? '' : `<button class="text-button skip" id="skipDeal">Skip this deal</button>`}</div><div id="journey" class="secondary-detail" hidden>${journeyMarkup(progress)}</div></div>`)
+  const a = w.latest_analysis || latestAnalysis(w.opportunity_id) || w.opportunities?.raw_listing?.analysis || {}
+  shell(`<section class="page-head"><div><span class="eyebrow">DEAL WORKSPACE</span><h1>${esc(o.listing_title || a.identified_name || 'Deal File')}</h1><p>${esc(MARKETPLACE_LABELS[o.source_platform] || o.source_platform || 'Marketplace')} · ${money(o.seller_asking_price)}${o.listing_location ? ` · ${esc(o.listing_location)}` : ''}</p></div><button class="button secondary small" id="handoffSite">Open on website ${icon('web',12)}</button></section><div class="focused-card workflow-card"><div class="workflow-top"><span class="stage">Step ${w.current_step_order} of 18</span><span>${percent}% complete</span></div><div class="progress"><span style="width:${percent}%"></span></div><div class="next-copy"><span class="eyebrow">NEXT ACTION</span><h2>${esc(w.step?.title || STEP_NAMES[w.current_step] || 'Continue')}</h2>${structuredCopy(w.step?.instruction || w.step?.teach_instruction || '')}</div>${a.recommendation ? decisionCard(a) : ''}<div class="workflow-action">${stepAction(w)}</div><div class="workflow-footer"><button class="text-button journey-toggle" id="journeyToggle">View ${done}/18 completed</button>${w.inventory_item_id ? '' : `<button class="text-button skip" id="skipDeal">Deal fell through</button>`}</div><div id="journey" class="secondary-detail" hidden>${journeyMarkup(progress)}</div></div>`)
   $('#handoffSite').onclick = () => chrome.runtime.sendMessage({ type:'FLIPPERS_OPEN_WEBSITE', workflowId:w.id, opportunityId:w.opportunity_id })
   $('#journeyToggle').onclick = () => { const j = $('#journey'); j.hidden = !j.hidden }
   $('#skipDeal')?.addEventListener('click', async () => {
-    if (!confirm('Skip this deal?')) return
-    busy(true); try { await api.rpc('skip_flip', { p_workflow_id:w.id, p_reason:'Skipped from Chrome extension' }); state.focusWorkflowId = null; state.view = 'deals'; await refresh() } catch (error) { toast(error.message) } finally { busy(false) }
+    if (!confirm('Deal fell through?')) return
+    busy(true); try { await api.rpc('skip_flip', { p_workflow_id:w.id, p_reason:'Deal fell through from Chrome extension' }); state.focusWorkflowId = null; state.view = 'deals'; await refresh() } catch (error) { toast(error.message) } finally { busy(false) }
   })
   bindStep(w)
 }
@@ -429,11 +446,11 @@ function questionRows(questions) {
 
 function stepAction(w) {
   const k = w.current_step
-  const a = w.latest_analysis || latestAnalysis(w.opportunity_id) || {}
+  const a = w.latest_analysis || latestAnalysis(w.opportunity_id) || w.opportunities?.raw_listing?.analysis || {}
   const o = w.opportunities || {}
-  if (k === 'capture_listing') return `<div class="form-stack"><div class="notice">Scan the current marketplace tab to replace this step with a full browser capture.</div><button class="button primary full" id="workflowScan">Scan current listing ${icon('scan',14)}</button></div>`
-  if (k === 'verify_listing') return `<form id="verifyStep" class="form-stack"><div class="form-grid"><label>Item title<input name="title" value="${esc(o.listing_title || a.identified_name || '')}" required></label><label>Exact asking price<input name="price" type="number" min="0" step="0.01" value="${o.seller_asking_price ?? ''}" required></label></div><label>Location<input name="location" value="${esc(o.listing_location || '')}"></label><button class="button primary">Confirm details ${icon('arrow',13)}</button></form>`
-  if (k === 'analyse_deal') return `<div class="form-stack"><div class="notice">Uses the authenticated browser capture, stored screenshots, Australian sold evidence and your current bankroll.</div><button class="button primary" id="analyseNow">${a.recommendation === 'skip' ? 'Reanalyse deal' : 'Analyse deal'} ${icon('spark',14)}</button>${a.recommendation === 'skip' ? `<button class="button danger" id="analysisSkip">Skip this deal</button>` : ''}</div>`
+  if (k === 'capture_listing') { if (a.recommendation) return `<div class="form-stack"><div class="notice"><strong>Already scanned and analysed.</strong><br>FlippersAI is carrying this lead into the seller / negotiation stage. You do not need to scan it again.</div></div>`; return `<div class="form-stack"><div class="notice">Scan the current marketplace tab to replace this step with a full browser capture.</div><button class="button primary full" id="workflowScan">Scan current listing ${icon('scan',14)}</button></div>` }
+  if (k === 'verify_listing') { const raw=o.raw_listing||{}, pending=!o.listing_title||o.seller_asking_price==null||!o.listing_location||!o.seller_name||!raw.condition; return `<form id="verifyStep" class="form-stack">${pending?'<div class="notice warn"><strong>Finishing listing details…</strong> FlippersAI has filled everything it has found so far. Missing fields mean the seller did not provide them yet or background enrichment is still finishing.</div>':'<div class="notice good">FlippersAI filled these details from the marketplace listing. Correct only anything that looks wrong.</div>'}<div class="form-grid"><label>Item title<input name="title" value="${esc(o.listing_title||a.identified_name||'')}" placeholder="Not provided by seller"></label><label>Exact asking price<input name="price" type="number" min="0" step="0.01" value="${o.seller_asking_price??''}" placeholder="Not provided"></label></div><div class="form-grid"><label>Location<input name="location" value="${esc(o.listing_location||'')}" placeholder="Not provided by seller"></label><label>Condition<input name="condition" value="${esc(raw.condition||'')}" placeholder="Not provided by seller"></label></div><label>Seller<input name="seller" value="${esc(o.seller_name||'')}" placeholder="Not provided by seller"></label><button class="button primary">Confirm details ${icon('arrow',13)}</button></form>` }
+  if (k === 'analyse_deal') return `<div class="form-stack"><div class="notice">Uses the authenticated browser capture, stored screenshots, Australian sold evidence and your current bankroll.</div><button class="button primary" id="analyseNow">${a.recommendation === 'skip' ? 'Reanalyse deal' : 'Analyse deal'} ${icon('spark',14)}</button>${a.recommendation === 'skip' ? `<button class="button danger" id="analysisSkip">Deal fell through</button>` : ''}</div>`
   if (k === 'ask_seller') {
     const qs = arr(a.questions_to_ask)
     return `<div class="form-stack">${qs.length ? questionRows(qs) : `<div class="notice">No additional seller questions were generated.</div>`}<div class="button-row"><button class="button secondary" id="copyAllQuestions">${icon('copy',13)} Copy all questions</button><button class="button primary" id="questionsSent">I sent them ${icon('arrow',13)}</button></div></div>`
@@ -470,7 +487,7 @@ async function bindStep(w) {
     e.preventDefault(); busy(true)
     try {
       const f = new FormData(e.currentTarget), price = Number(f.get('price'))
-      await api.update('opportunities', `id=eq.${w.opportunity_id}`, { listing_title:f.get('title') || null, seller_asking_price:price, listing_location:f.get('location') || null, user_overrides:{ asking_price:price }, updated_at:new Date().toISOString() })
+      await api.update('opportunities', `id=eq.${w.opportunity_id}`, { listing_title:f.get('title') || null, seller_asking_price:Number.isFinite(price)?price:null, listing_location:f.get('location') || null, seller_name:f.get('seller') || null, raw_listing:{...(w.opportunities?.raw_listing||{}),condition:f.get('condition')||null}, user_overrides:{ asking_price:Number.isFinite(price)?price:null }, updated_at:new Date().toISOString() })
       await advanceRaw(w, { asking_price:price, verified:true, source:'chrome_extension' })
     } catch (error) { toast(error.message) } finally { busy(false) }
   })
@@ -525,7 +542,7 @@ async function bindStep(w) {
   $('#purchaseStep')?.addEventListener('submit', async e => {
     e.preventDefault(); busy(true)
     try {
-      const f = new FormData(e.currentTarget), a = w.latest_analysis || latestAnalysis(w.opportunity_id), o = w.opportunities || {}
+      const f = new FormData(e.currentTarget), a = w.latest_analysis || latestAnalysis(w.opportunity_id) || w.opportunities?.raw_listing?.analysis || {}, o = w.opportunities || {}
       await api.rpc('record_purchase', { p_opportunity_id:w.opportunity_id, p_analysis_id:a.id, p_title:o.listing_title || a.identified_name || 'Purchased item', p_category:a.category || '', p_purchase_price:Number(f.get('price')), p_acquisition_costs:Number(f.get('costs') || 0) })
       toast('Purchase recorded'); await refresh()
     } catch (error) { toast(error.message) } finally { busy(false) }
@@ -585,7 +602,7 @@ async function makeSalePlan(w) {
   if (!id) throw new Error('Purchase must be recorded before building a sale plan.')
   const existing = await latestSalePlan(id)
   if (existing) return existing
-  const data = await api.invoke('build-sale-plan', { inventory:w.inventory_items || state.inventory.find(x => x.id === id) || {}, analysis:w.latest_analysis || latestAnalysis(w.opportunity_id) || {}, opportunity:w.opportunities || state.opps.find(x => x.id === w.opportunity_id) || {}, profile:state.bundle?.profile || {} })
+  const data = await api.invoke('build-sale-plan', { inventory:w.inventory_items || state.inventory.find(x => x.id === id) || {}, analysis:w.latest_analysis || latestAnalysis(w.opportunity_id) || w.opportunities?.raw_listing?.analysis || {}, opportunity:w.opportunities || state.opps.find(x => x.id === w.opportunity_id) || {}, profile:state.bundle?.profile || {} })
   if (data?.error) throw new Error(data.error)
   const x = data.plan || {}
   return api.insert('sale_plans', { user_id:state.user.id, inventory_item_id:id, recommended_platform:x.recommended_platform, platform_rankings:x.platform_rankings || [], pricing_plan:x.pricing_plan || {}, negotiation_ladder:x.negotiation_ladder || {}, shipping_plan:x.shipping_plan || {}, photo_plan:x.photo_plan || [], listing_copy:x.listing_copy || {}, preparation_checklist:x.preparation_checklist || [], next_action:x.next_action || '', engine_version:data.engine_version || 'flippers-sale-alpha-1' }, { single:true })
@@ -616,3 +633,6 @@ function inventoryPage() {
 }
 
 boot()
+
+// v0.89.9: return Scan to its clean capture state without reloading the side panel.
+document.addEventListener('flippers:prepare-new-scout',()=>{state.view='scan';state.scan=null;state.temp={};render()})

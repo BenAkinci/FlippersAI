@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js'
 
 const SESSION_KEY = 'flippersai_session_v1'
-const SCOUT_CACHE_TTL_MS = 1500
+const SCOUT_CACHE_TTL_MS = 5000
 const scoutSelectCache = new Map()
 const scoutSelectInflight = new Map()
 
@@ -15,7 +15,20 @@ function qs(params = {}) {
 }
 
 function scoutCacheKey(table, query = '') {
-  return table === 'scout_candidates' ? `${table}?${query}` : null
+  if (table !== 'scout_candidates') return null
+  const params = new URLSearchParams(query)
+  const select = params.get('select') || '*'
+  // Only canonicalise complete candidate rows. Field-specific reads keep their
+  // exact key so a narrow response can never poison a later full-row read.
+  if (select !== '*') return table + '?' + query
+  const session = params.get('session_id')
+  if (session) return table + '?select=*&session_id=' + session
+  const id = params.get('id') || ''
+  if (id.startsWith('in.(') && id.endsWith(')')) {
+    const ids = id.slice(4, -1).split(',').map(x => x.trim()).filter(Boolean).sort()
+    return table + '?select=*&id=in.(' + ids.join(',') + ')'
+  }
+  return table + '?' + query
 }
 
 function invalidateScoutCache() {

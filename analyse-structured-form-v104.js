@@ -66,7 +66,7 @@ async function extractFromImages(){
   const images=[];for(const f of evidenceFiles.slice(0,10))images.push(await toDataUrl(f))
   const platform=String($('[name="platform"]')?.value||'')
   const{data,error}=await supabase.functions.invoke('listing-visual-extraction',{body:{images,platform}})
-  if(revision!==evidenceRevision)return
+  if(revision!==evidenceRevision){if(!evidenceFiles.length&&status){status.className='auto-status';status.textContent='Add screenshots/photos and FlippersAI will automatically fill the form.'}return}
   if(error||data?.error)throw new Error(error?.message||data?.error||'Could not read screenshots')
   const x=data.extraction||{}
   setField('platform',({Facebook:'facebook','Facebook Marketplace':'facebook',Depop:'depop',eBay:'ebay',Gumtree:'gumtree',Vinted:'vinted'})[x.marketplace]||String(x.marketplace||'').toLowerCase())
@@ -75,7 +75,7 @@ async function extractFromImages(){
   setField('seller',x.seller_name);setField('seller_rating',x.seller_rating);setField('seller_reviews',x.seller_review_count);setField('location',x.listing_location);setField('condition',x.condition);setField('description',x.description);setField('extra_info',x.extra_info)
   const known=[x.listing_title,x.description,x.condition,x.seller_name,x.colour,x.brand,x.model,x.listing_location,x.extra_info].map(v=>String(v||'').toLowerCase()).filter(Boolean).join('\n');const details=Array.isArray(x.visible_item_details)?x.visible_item_details.map(v=>String(v||'').trim()).filter(v=>v&&!known.includes(v.toLowerCase())&&!/^(?:size|seller|price|ask|condition)\b/i.test(v)&&!/^[A-Z]{0,3}\$?\s*\d[\d,.]*$|[$£€]\s*\d/.test(v)&&!/^(?:depop|ebay|facebook(?: marketplace)?|gumtree|vinted)$/i.test(v)).join('; '):'';if(details){const extra=$('[name="extra_info"]');if(extra&&!extra.value) setField('extra_info',details)}
   if(status){status.className='auto-status good';status.textContent=`Screenshots read. FlippersAI filled the visible fields${x.extraction_confidence!=null?` (${Math.round(Number(x.extraction_confidence)*100)}% extraction confidence)`:''}. Review and edit anything that looks wrong.`}
- }catch(e){if(revision!==evidenceRevision)return;if(status){status.className='auto-status warn';status.textContent=`Could not auto-fill these screenshots: ${e.message||e}. You can still enter the details manually.`}}finally{extracting=false;if(revision!==evidenceRevision&&evidenceFiles.length)scheduleExtraction()}
+ }catch(e){if(revision!==evidenceRevision){if(!evidenceFiles.length&&status){status.className='auto-status';status.textContent='Add screenshots/photos and FlippersAI will automatically fill the form.'}return}if(status){status.className='auto-status warn';status.textContent=`Could not auto-fill these screenshots: ${e.message||e}. You can still enter the details manually.`}}finally{extracting=false;if(revision!==evidenceRevision&&evidenceFiles.length)scheduleExtraction()}
 }
 function scheduleExtraction(){clearTimeout(extractTimer);extractTimer=setTimeout(extractFromImages,450)}
 

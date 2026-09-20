@@ -1,1 +1,22 @@
 .v080-live-detail{display:block;margin-top:5px;color:#78909d;font-size:12px;line-height:1.35}.scout-loading-indicator.error{border-color:#efc6c1;background:#fff8f7}.scout-loading-indicator.error .scout-loading-copy strong,.scout-loading-indicator.error .scout-loading-count{color:#a73730}.scout-loading-indicator.error .scout-loading-track i{background:#d6574e}.scout-summary>div strong{font-variant-numeric:tabular-nums}.scout-summary>div{transition:border-color .15s,background-color .15s}.v076-run-actions button:disabled{cursor:not-allowed;opacity:.48}@media(prefers-reduced-motion:reduce){.scout-summary>div{transition:none}}
+/* v0898 stopped loader + click-through stability */
+#v080Loading{pointer-events:none}
+#v080Loading.stopped .scout-loading-spinner{display:none!important;animation:none!important}
+#v080Loading.stopped .scout-loading-track{display:none!important}
+#v080Loading.stopped .scout-loading-count{opacity:.7}
+#v080Loading.paused .scout-loading-spinner{animation-play-state:paused!important}
+#v080Loading.paused .scout-loading-track{display:block!important}
+
+/* v0899 explicit pause/stop visual state */
+#v080Loading.paused .scout-loading-spinner{animation:none!important;opacity:.55!important}
+#v080Loading.paused .scout-loading-track{opacity:.55!important}
+#v080Loading.stopped .scout-loading-spinner,#v080Loading.stopped .scout-loading-track{display:none!important}
+
+/* v08912 persisted-but-not-live Scout state */
+#v080Loading.interrupted .scout-loading-spinner,#v080Loading.interrupted .scout-loading-track{display:none!important}
+#v080Loading.interrupted{pointer-events:none}
+
+/* v0.90.1: completed Scout is visibly finished, not still loading */
+#v090Loading.completed .scout-loading-spinner{animation:none!important;opacity:.35!important}
+#v090Loading.completed .scout-loading-track i{width:100%!important}
+#v090Controls button:disabled,#v090More:disabled{opacity:.45!important;cursor:not-allowed!important;filter:grayscale(.35)}

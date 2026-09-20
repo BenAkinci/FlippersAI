@@ -50,6 +50,7 @@ function bind(){
   })
 }
 
-function installTabs(){if(active)return;const head=$('.scout-page-head');if(!head||head.querySelector('.v083-scan-tabs'))return;const tabs=document.createElement('div');tabs.className='v083-scan-tabs';tabs.innerHTML='<button class="active" data-v083-live-scan>Scan</button><button data-v083-shortlist>Shortlist</button>';head.appendChild(tabs);tabs.querySelector('[data-v083-shortlist]').onclick=async()=>{active=true;await load();render()}}
+function scanHead(){const direct=$('.scout-page-head');if(direct)return direct;const main=$('.ext-main');if(!main)return null;return $('.page-head',main).find(head=>{const title=String($('h1',head)?.textContent||'').trim().toLowerCase();const text=String(head.textContent||'').toLowerCase();return title.includes('scan')||text.includes('marketplace scout')})||null}
+function installTabs(){if(active)return;const head=scanHead();if(!head||head.querySelector('.v083-scan-tabs'))return;const tabs=document.createElement('div');tabs.className='v083-scan-tabs';tabs.innerHTML='<button class="active" data-v083-live-scan>Scan</button><button data-v083-shortlist>Shortlist</button>';head.appendChild(tabs);tabs.querySelector('[data-v083-shortlist]').onclick=async()=>{active=true;await load();render()}}
 
 ensureStyle();new MutationObserver(()=>{if(!active)installTabs()}).observe(document.getElementById('app'),{childList:true,subtree:true});setTimeout(installTabs,250)

@@ -15,7 +15,12 @@
   async function load(){const x=await chrome.storage.local.get(HISTORY_KEY).catch(()=>({}));ratings=Array.isArray(x[HISTORY_KEY])?x[HISTORY_KEY]:[];apply()}
   chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes[HISTORY_KEY]){ratings=Array.isArray(changes[HISTORY_KEY].newValue)?changes[HISTORY_KEY].newValue:[];apply()}})
   chrome.runtime.onMessage.addListener(msg=>{if(msg?.type==='FLIPPERS_RATING_OVERLAY_V067'||msg?.type==='FLIPPERS_RATING_OVERLAY_V077'){if(Array.isArray(msg.ratings))ratings=msg.ratings;setTimeout(apply,20)}})
-  new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(apply,80)}).observe(document.documentElement,{childList:true,subtree:true})
+  const ownNode=node=>node?.nodeType===1&&(String(node.className||'').includes('flippersai-')||String(node.id||'').startsWith('flippers'))
+  new MutationObserver(mutations=>{
+    const meaningful=mutations.some(m=>[...m.addedNodes,...m.removedNodes].some(node=>node.nodeType===1&&!ownNode(node)))
+    if(!meaningful)return
+    clearTimeout(timer);timer=setTimeout(apply,300)
+  }).observe(document.documentElement,{childList:true,subtree:true})
   window.addEventListener('resize',()=>{clearTimeout(timer);timer=setTimeout(apply,40)},{passive:true})
   load()
 })()
