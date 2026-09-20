@@ -14,7 +14,8 @@ assert(css.includes('.mobile-nav-item.active'), 'active nav state styling must e
 assert(js.includes("topbar.insertAdjacentElement('afterend', nav)"), 'mobile nav must be moved beneath the top bar')
 assert(js.includes("shortlist:"), 'Shortlist icon must be supplied')
 assert(js.includes("saved:"), 'Saved icon must be supplied')
-assert(html.includes('responsive-nav-v138.css?v=0.138.0'), 'responsive nav stylesheet must be loaded')
+assert(html.includes('responsive-nav-v138.css?v=0.141.0'), 'responsive nav stylesheet must be loaded')
+assert(css.includes('@media (min-width:861px) and (max-width:1100px)'), 'mid-width desktop nav must stay within the viewport (v0.141)')
 assert(html.includes('responsive-nav-v138.js?v=0.138.0'), 'responsive nav script must be loaded')
 
 console.log('responsive nav v138 contract passed')

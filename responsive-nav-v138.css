@@ -76,3 +76,15 @@
   .mobile-nav{padding-inline:8px!important;gap:4px}
   .mobile-nav-item{min-width:66px;padding-inline:6px!important;font-size:10.5px!important}
 }
+
+/* v0.141: between the mobile breakpoint and ~1100px the full desktop nav
+   (icons + labels + alerts + avatar) is wider than the viewport, which clipped
+   Learn and squeezed the alerts button. Keep the same nav, drop the icons and
+   tighten spacing so every control stays visible and nothing moves. */
+.topbar-inner .notification-button,.topbar-inner .account-wrap{flex:0 0 auto}
+.topbar-inner .desktop-nav{min-width:0}
+@media (min-width:861px) and (max-width:1100px){
+  .topbar-inner{gap:16px}
+  .desktop-nav .desktop-nav-item{padding:9px 9px!important;gap:0!important}
+  .desktop-nav .desktop-nav-item>svg,.desktop-nav .desktop-nav-item .ico{display:none!important}
+}

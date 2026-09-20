@@ -95,6 +95,8 @@ async function enhanceDeals(){
   if(pageKind()!=='DEALS'||$('#platformDealTools'))return
   await loadCore(); const {data:opps}=await supabase.from('opportunities').select('*').order('updated_at',{ascending:false})
   const head=$('.page-head'); if(!head)return
+  // v0.141: no search/filter/reset controls when there is nothing to search or reset.
+  if(!(opps||[]).length){head.insertAdjacentHTML('afterend','<div id="platformDealTools" hidden></div>');return}
   head.insertAdjacentHTML('afterend',`<div class="platform-toolbar" id="platformDealTools"><div class="platform-search"><input id="dealSearch" placeholder="Search deals"></div><select id="dealCategory"><option value="">All categories</option>${categoryOptions('',false)}</select><button class="button secondary" id="resetDeals">Reset deals</button></div>`)
   const rows=$$('.opportunity-row')
   rows.forEach((row,idx)=>{const o=(opps||[])[idx];if(!o)return;row.dataset.recordId=o.id; const main=$('.opportunity-main',row); if(o.category_id)main?.insertAdjacentHTML('beforeend',`<small class="record-path">${icon('folder',12)} ${esc(categoryPath(o.category_id))}</small>`); const actions=document.createElement('div');actions.className='record-actions';actions.innerHTML=`<button data-record-edit="${o.id}" aria-label="Edit">${icon('edit')}</button><button data-record-delete="${o.id}" aria-label="Delete">${icon('trash')}</button>`;row.appendChild(actions)})
@@ -110,6 +112,7 @@ async function editDeal(o){ if(!o)return;await loadCore();const wrap=modal(`<div
 async function enhanceInventory(){
   if(pageKind()!=='INVENTORY'||$('#platformInventoryTools'))return
   await loadCore();const {data:items}=await supabase.from('inventory_items').select('*').order('updated_at',{ascending:false});const head=$('.page-head');if(!head)return
+  if(!(items||[]).length){head.insertAdjacentHTML('afterend','<div id="platformInventoryTools" hidden></div>');return}
   head.insertAdjacentHTML('afterend',`<div class="platform-toolbar" id="platformInventoryTools"><div class="platform-search"><input id="inventorySearch" placeholder="Search inventory"></div><select id="inventoryCategory"><option value="">All categories</option>${categoryOptions('',false)}</select><button class="button secondary" id="resetInventory">Reset inventory</button></div>`)
   const rows=$$('.inventory-row');rows.forEach((row,idx)=>{const i=(items||[])[idx];if(!i)return;row.dataset.recordId=i.id;const copy=$('.inventory-copy',row);if(i.category_id)copy?.insertAdjacentHTML('beforeend',`<small class="record-path">${icon('folder',12)} ${esc(categoryPath(i.category_id))}</small>`);const actions=document.createElement('div');actions.className='record-actions';actions.innerHTML=`<button data-inventory-edit="${i.id}" aria-label="Edit">${icon('edit')}</button><button data-inventory-delete="${i.id}" aria-label="Delete">${icon('trash')}</button>`;row.appendChild(actions)})
   const filter=()=>{const q=$('#inventorySearch')?.value.toLowerCase().trim()||'',cat=$('#inventoryCategory')?.value||'';rows.forEach((r,idx)=>{const i=(items||[])[idx];const hay=[i?.title,i?.category,i?.notes,i?.tags?.join(' ')].join(' ').toLowerCase();r.style.display=(!q||hay.includes(q))&&(!cat||categoryMatches(i?.category_id,cat))?'':'none'})};$('#inventorySearch')?.addEventListener('input',filter);$('#inventoryCategory')?.addEventListener('change',filter)

@@ -92,6 +92,16 @@
     let text = raw.toUpperCase().replace(/\u00A0/g, ' ').trim()
     text = text.replace(/\b(?:SHOE\s*)?SIZE\b/g, ' ').replace(/\s+/g, ' ').trim()
 
+    // v0.141: dual listings such as "UK 10 / US 11" are equivalents, not a conflict.
+    const dual = []
+    const dualRx = /\b(US|UK|EU|AU)\s*[-:]?\s*(\d+(?:\.\d+)?(?:\s*1\/2)?)\b/g
+    let dm
+    while ((dm = dualRx.exec(text))) { if (!dual.some(p => p.system === dm[1] && p.size === dm[2])) dual.push({ system: dm[1], size: dm[2] }) }
+    if (dual.length > 1 && new Set(dual.map(p => p.system)).size === dual.length) {
+      const primary = dual.find(p => p.system === 'US') || dual[0]
+      return { system: primary.system, size: primary.size, display: dual.map(p => `${p.system} ${p.size}`).join(' / ') }
+    }
+
     let system = null
     for (const code of SIZE_SYSTEMS) {
       const touchingStart = new RegExp(`^${code}(?=\\d|\\s|[-:])`, 'i')
@@ -111,10 +121,10 @@
 
     const generic = cleanGenericSize(raw)
     if (!generic) return null
-    if (APPAREL_SIZE_RE.test(generic) || GARMENT_MEASURE_RE.test(generic) || /^(?:One Size|N\/A)$/.test(generic)) return { system: '', size: generic }
-
     // Numeric footwear sizes must include a system because US/UK/EU/AU can materially change valuation.
     if (isFootwearContext(form) && /^\d+(?:\.\d+)?(?:\s*1\/2)?$/i.test(generic)) return null
+
+    if (APPAREL_SIZE_RE.test(generic) || GARMENT_MEASURE_RE.test(generic) || /^(?:One Size|N\/A)$/.test(generic)) return { system: '', size: generic }
 
     // For non-footwear, size is optional and can be a relevant free-form variant (book edition, card set, device capacity, etc.).
     return { system: '', size: generic }
@@ -132,6 +142,7 @@
 
   function canonicalSize(parsed) {
     if (!parsed) return ''
+    if (parsed.display) return parsed.display
     return parsed.system ? `${parsed.system} ${parsed.size}` : parsed.size
   }
 
@@ -203,7 +214,8 @@
     }
     if (s && s.dataset.userEdited !== 'true' && document.activeElement !== s) {
       const size = String(form.elements?.size?.value || '').trim(), system = String(form.elements?.size_system?.value || '').trim()
-      if (size) { const parsed = { system, size }; s.value = canonicalSize(parsed); s.dataset.canonicalValue = canonicalSize(parsed) }
+      const current = size ? parseSize(s.value, form) : null
+      if (size && !(current && current.size === size && current.system === system)) { const parsed = { system, size }; s.value = canonicalSize(parsed); s.dataset.canonicalValue = canonicalSize(parsed) }
     }
   }
 

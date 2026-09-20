@@ -113,7 +113,9 @@
     if(hiddenSize&&sizeEntry&&sizeEntry.dataset.userEdited!=='true'&&document.activeElement!==sizeEntry){
       const size=String(hiddenSize.value||'').trim()
       if(size){
-        const display=sizeText(size,String(hiddenSystem?.value||'').trim())
+        const alternates=Array.isArray(latestExtraction?.size_alternates)?latestExtraction.size_alternates:[]
+        const primaryMatches=alternates.some(p=>String(p?.size)===size&&String(p?.system||'')===String(hiddenSystem?.value||'').trim())
+        const display=(alternates.length>1&&primaryMatches&&latestExtraction?.size_display)?String(latestExtraction.size_display):sizeText(size,String(hiddenSystem?.value||'').trim())
         sizeEntry.value=display
         sizeEntry.dataset.canonicalValue=display
         sizeEntry.dataset.autoValue=display
