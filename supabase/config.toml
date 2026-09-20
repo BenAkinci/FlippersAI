@@ -1,5 +1,53 @@
 project_id = "msmpigerejpxepkylkxz"
 
+# verify_jwt values mirror production as of 2026-09-20 (dashboard "Verify JWT" toggle).
+# Never deploy with --no-verify-jwt unless the value below is false.
+
+[functions.analyse-listing]
+verify_jwt = true
+
+[functions.analyse-listing-v2]
+verify_jwt = true
+
+[functions.analyse-lite-v1]
+verify_jwt = true
+
+[functions.analyse-postprocess]
+verify_jwt = true
+
+[functions.build-sale-plan]
+verify_jwt = true
+
+[functions.community-intelligence]
+verify_jwt = true
+
+[functions.deal-radar]
+verify_jwt = true
+
+[functions.extract-listing-capture]
+verify_jwt = true
+
+[functions.health]
+verify_jwt = false
+
+[functions.listing-acquisition]
+verify_jwt = true
+
 [functions.listing-visual-extraction]
 verify_jwt = true
 entrypoint = "./functions/listing-visual-extraction/index.ts"
+
+[functions.scout-batch-screen]
+verify_jwt = true
+
+[functions.scout-enrich-listing]
+verify_jwt = true
+
+[functions.scout-listings]
+verify_jwt = true
+
+[functions.scout-quick-rate]
+verify_jwt = true
+
+[functions.workflow-state]
+verify_jwt = true
