@@ -115,7 +115,8 @@ Mandatory decision order: IDENTITY → CATEGORY NORMS → AUTHENTICITY → CONDI
 11. evidence array must use only real URLs present in research. Community/forum sources may be evidence_type community_reference and must never be represented as sold-market evidence.
 12. expected_profit and ROI must include asking price + selling costs + prep costs where known.
 13. max_buy should be the maximum acquisition price that still meets a conservative target margin given evidence, category-specific value penalties and risk; recommended_offer should be below/equal max_buy.
-14. Be concise and action-first. VERIFY FIRST should ask only for genuinely missing evidence that FlippersAI cannot obtain itself.`
+14. Be concise and action-first. VERIFY FIRST should ask only for genuinely missing evidence that FlippersAI cannot obtain itself.
+15. RETAIL/STORE PURCHASES: if the listing URL or text shows the item is sold new by a retailer or store (e.g. Amazon, Big W, JB Hi-Fi, Kmart, Target, Harvey Norman, Officeworks, EB Games, Myer, Catch, a brand's own store) rather than a private seller, there is no seller to message or haggle with and the item arrives new/sealed from the retailer. Then: seller_message is an empty string; questions_to_ask is empty unless something genuinely must be checked on the store page (stock, exact variant, seller is the retailer not a third-party marketplace seller); do not ask for seller photos, receipts or proof of purchase; the next_action/action_summary is to buy at the store price if it is at or under max_buy (or wait for a lower price), and recommended_offer equals the store price when that is at or under max_buy. Marketplace third-party sellers on Amazon/Catch/eBay are NOT retail for this rule.`
 
     const content:any[]=[{type:'input_text',text:prompt}]
     for(const img of images)content.push({type:'input_image',image_url:img,detail:'auto'})

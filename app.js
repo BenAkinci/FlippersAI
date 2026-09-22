@@ -246,7 +246,7 @@ function shell(content) {
   const profile = state.bundle?.profile || {}
   const initial = (friendlyName() || state.session?.user?.email || 'U').charAt(0).toUpperCase()
   app.innerHTML = `
-    <div class="app-shell">
+    <div class="app-shell" data-view="${esc(state.view)}">
       <header class="topbar">
         <div class="topbar-inner">
           <button class="brand brand-button" data-nav="today"><span class="brand-mark">${icon('spark', 18)}</span><span>FlippersAI</span></button>

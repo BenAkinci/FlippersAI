@@ -1,5 +1,6 @@
-// FlippersAI Deal Radar v1
-// Finds retail deals that are worth flipping. Sources: OzBargain public RSS feeds.
+// FlippersAI Deal Radar
+// Finds retail deals that are worth flipping. Sources: OzBargain public RSS feeds (core + a
+// rotating set of brand/category feeds) and camelcamelcamel's Amazon AU price-drop feeds.
 // Pipeline: fetch feeds -> heuristic prefilter -> cheap AI triage (no web) ->
 // web-search resale check for the best few -> Analyse-equivalent economics ->
 // store every decision in radar_deals so nothing is evaluated twice.
@@ -9,18 +10,24 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import OpenAI from 'npm:openai'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const ENGINE = 'deal-radar-v2.1'
-// v2: wider net. Verified feeds only (checked 2026-09-22); fetched sequentially with a
-// pause because OzBargain rate-limits (HTTP 429) rapid requests.
+const ENGINE = 'deal-radar-v2.2'
+// v2.2: more sources. All feeds verified 2026-09-22. OzBargain rate-limits (HTTP 429) rapid
+// requests, so core feeds are fetched every run and the brand/category feeds rotate: each run
+// takes the next ROTATE_PER_RUN of them (a full cycle every few runs), with a pause between.
 const OZB = 'https://www.ozbargain.com.au'
-const FEEDS = [
-  '/tag/pricing-error/feed', '/deals/popular/feed', '/feed', '/deals/feed',
+const CORE_FEEDS = ['/tag/pricing-error/feed', '/deals/popular/feed', '/feed', '/deals/feed'].map(p => OZB + p)
+const ROTATING_FEEDS = [
   '/cat/electrical-electronics/deals/feed', '/cat/computing/deals/feed', '/cat/gaming/deals/feed',
   '/cat/toys-kids/deals/feed', '/cat/fashion-apparel/deals/feed', '/cat/sports-outdoors/deals/feed',
-  '/cat/home-garden/deals/feed', '/tag/lego/feed', '/tag/pokemon/feed', '/tag/dyson/feed',
-  '/tag/nike/feed', '/tag/nintendo-switch/feed'
+  '/cat/home-garden/deals/feed', '/tag/lego/feed', '/tag/pokemon/feed', '/tag/pokemon-tcg/feed', '/tag/dyson/feed',
+  '/tag/nike/feed', '/tag/adidas/feed', '/tag/new-balance/feed', '/tag/sneakers/feed', '/tag/nintendo-switch/feed',
+  '/tag/playstation-5/feed', '/tag/apple/feed', '/tag/sony/feed', '/tag/garmin/feed', '/tag/dewalt/feed',
+  '/tag/milwaukee/feed', '/tag/makita/feed'
 ].map(p => OZB + p)
-const FEED_PAUSE_MS = 800
+const ROTATE_PER_RUN = 12
+// Amazon AU biggest price drops (camelcamelcamel). Items link to camel's product page; the ASIN gives the Amazon URL.
+const CAMEL_FEEDS = ['https://au.camelcamelcamel.com/top_drops/feed?t=daily', 'https://au.camelcamelcamel.com/top_drops/feed?t=weekly']
+const FEED_PAUSE_MS = 1200
 const PRIORITY_FEEDS = new Set([OZB + '/tag/pricing-error/feed', OZB + '/deals/popular/feed'])
 const TRIAGE_BATCH = 40
 const MAX_TRIAGE = 80
@@ -43,7 +50,7 @@ const errText = (e: any) => e instanceof Error ? e.message : (e?.message || e?.e
 // ---------- RSS ----------
 type FeedItem = { title: string, link: string, description: string, categories: string[], pubDate: string | null,
   storeUrl: string | null, image: string | null, expiry: string | null, votesPos: number | null, votesNeg: number | null,
-  priorityFeed?: boolean }
+  priorityFeed?: boolean, source?: string }
 
 const decode = (s: string) => s
   .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
@@ -70,6 +77,24 @@ function parseFeed(xml: string): FeedItem[] {
       votesPos: num(attr(x, 'ozb:meta', 'votes-pos')),
       votesNeg: num(attr(x, 'ozb:meta', 'votes-neg'))
     })
+  }
+  return items
+}
+
+// camelcamelcamel: "Product name - down 20.01% ($5.00) to $19.99 from $24.99"
+function parseCamel(xml: string): FeedItem[] {
+  const items: FeedItem[] = []
+  for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const x = m[1]
+    const link = tag(x, 'link')
+    const title = stripHtml(tag(x, 'title'))
+    const asin = link.match(/\/product\/([A-Z0-9]{10})/i)?.[1]
+    if (!link || !title || !asin) continue
+    const t = title.match(/^(.*) - down ([\d.]+)% \(\$([\d.,]+)\) to \$([\d.,]+) from \$([\d.,]+)$/)
+    const name = t ? t[1] : title
+    const description = t ? `Amazon AU price drop ${t[2]}%: now $${t[4]} (was $${t[5]}).` : title
+    items.push({ title: t ? `${name} — $${t[4]} (was $${t[5]}) at Amazon AU` : title, link, description, categories: [], pubDate: tag(x, 'pubDate') || null,
+      storeUrl: `https://www.amazon.com.au/dp/${asin}`, image: null, expiry: null, votesPos: null, votesNeg: null, source: 'camelcamelcamel' })
   }
   return items
 }
@@ -132,7 +157,7 @@ const evalSchema = {
 
 async function triage(client: OpenAI, rows: { it: FeedItem, price: number | null }[]) {
   const compact = rows.map((r, index) => ({ index, title: r.it.title, price_in_title: r.price, categories: r.it.categories, text: r.it.description.slice(0, 400) }))
-  const prompt = `You screen Australian retail deals (OzBargain) for a reseller. For each deal decide whether it is a PHYSICAL, SPECIFIC product that could realistically be bought new at this price and resold in Australia (eBay AU, Facebook Marketplace, Gumtree, StockX, etc.) for a profit after ~13% fees and shipping.
+  const prompt = `You screen Australian retail deals (OzBargain posts and Amazon AU price drops) for a reseller. For each deal decide whether it is a PHYSICAL, SPECIFIC product that could realistically be bought new at this price and resold in Australia (eBay AU, Facebook Marketplace, Gumtree, StockX, etc.) for a profit after ~13% fees and shipping.
 Set resellable=false for: services, digital goods, consumables/groceries, generic/unbranded items, bundles that cannot be identified, clothing without a specific model, anything where the price is not the price of the product itself.
 product_name: the most specific identity supported by the text (brand + model/set number/SKU). Never invent a model.
 buy_price_aud: the actual purchase price in AUD from the title or text (null if unclear — such deals are skipped). delivery_cost_aud: stated delivery cost, 0 if free delivery/click & collect is stated, null if unknown.
@@ -203,10 +228,24 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
 async function run(db: any, client: OpenAI, runId: string) {
   const stats = { fetched: 0, fresh: 0, prefiltered: 0, triaged: 0, evaluated: 0, qualified: 0, feed_errors: [] as string[] }
   const all = new Map<string, FeedItem>()
+  // Rotation: which slice of ROTATING_FEEDS this run takes, from the number of past runs.
+  const { count: pastRuns } = await db.from('radar_runs').select('id', { count: 'exact', head: true })
+  const start = ((pastRuns || 0) * ROTATE_PER_RUN) % ROTATING_FEEDS.length
+  const rotation = Array.from({ length: Math.min(ROTATE_PER_RUN, ROTATING_FEEDS.length) }, (_, k) => ROTATING_FEEDS[(start + k) % ROTATING_FEEDS.length])
+  const FEEDS = [...CORE_FEEDS, ...rotation]
+  ;(stats as any).feeds = FEEDS.map(u => u.replace(OZB, ''))
+  // Amazon price drops are a different host, so no need to pause for them.
+  for (const url of CAMEL_FEEDS) {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'FlippersAI-DealRadar/2.2 (+https://whattheflip-adz.pages.dev)', Accept: 'application/rss+xml, application/xml' } })
+      if (!res.ok) { stats.feed_errors.push(`${url}: HTTP ${res.status}`); continue }
+      for (const it of parseCamel(await res.text())) if (!all.has(it.link)) all.set(it.link, it)
+    } catch (e) { stats.feed_errors.push(`${url}: ${e instanceof Error ? e.message : String(e)}`) }
+  }
   for (const [n, url] of FEEDS.entries()) {
     if (n) await new Promise(r => setTimeout(r, FEED_PAUSE_MS))
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'FlippersAI-DealRadar/2.0 (+https://whattheflip-adz.pages.dev)', Accept: 'application/rss+xml, application/xml' } })
+      const res = await fetch(url, { headers: { 'User-Agent': 'FlippersAI-DealRadar/2.2 (+https://whattheflip-adz.pages.dev)', Accept: 'application/rss+xml, application/xml' } })
       if (!res.ok) { stats.feed_errors.push(`${url.replace(OZB, '')}: HTTP ${res.status}`); continue }
       for (const it of parseFeed(await res.text())) {
         const prev = all.get(it.link)
@@ -229,7 +268,7 @@ async function run(db: any, client: OpenAI, runId: string) {
   stats.fresh = fresh.length
 
   const base = (it: FeedItem) => ({
-    source: 'ozbargain', source_url: it.link, store_url: it.storeUrl, title: clean(it.title, 400),
+    source: it.source || 'ozbargain', source_url: it.link, store_url: it.storeUrl, title: clean(it.title, 400),
     store: it.storeUrl ? (() => { try { return new URL(it.storeUrl!).hostname.replace(/^www\./, '') } catch { return null } })() : null,
     category: it.categories[0] || null, posted_at: it.pubDate ? new Date(it.pubDate).toISOString() : null,
     expires_at: it.expiry ? new Date(it.expiry).toISOString() : null, votes_pos: it.votesPos, votes_neg: it.votesNeg,

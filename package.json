@@ -1,7 +1,7 @@
 {
   "name": "flippersai",
   "private": true,
-  "version": "0.151.2",
+  "version": "0.152.0",
   "scripts": {
     "doctor": "node scripts/dev-doctor.mjs",
     "dev": "npm run build && node scripts/dev-server.mjs public",

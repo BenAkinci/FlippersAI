@@ -63,17 +63,20 @@ Create a resale plan that:
 - writes an honest, high-converting listing title and description without claiming facts that are not supported;
 - mentions known flaws clearly;
 - ends with exactly what the user should do next.
-All money values are AUD.`
+All money values are AUD.
+WRITING STYLE (the user reads this, not a developer): plain everyday English, short sentences. Never mention internal field names or engine terms (no "predicted_mid", "engine", "expected_close_price", "acquisition analysis"). Round money to whole dollars (e.g. "$112", not "AUD 111.60"). pricing_plan.rationale is at most 2 short sentences. Checklist and photo items are short imperative phrases (max ~12 words), only what matters for this item — no generic filler.`
 
     const client = new OpenAI({ apiKey })
     const response = await client.responses.create({
       model: 'gpt-5-mini',
+      // v2: low reasoning effort — the plan is structured writing, not research (was ~40 s at default effort).
+      reasoning: { effort: 'low' },
       input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
       text: { format: { type: 'json_schema', name: 'sale_plan', strict: true, schema } },
       store: false
     })
     if (!response.output_text) throw new Error('No sale plan returned')
-    return new Response(JSON.stringify({ plan: JSON.parse(response.output_text), engine_version: 'flippers-sale-alpha-1' }), { headers: cors })
+    return new Response(JSON.stringify({ plan: JSON.parse(response.output_text), engine_version: 'flippers-sale-alpha-2' }), { headers: cors })
   } catch (err) {
     console.error(err)
     return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), { status: 500, headers: cors })

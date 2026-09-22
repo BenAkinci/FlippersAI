@@ -92,6 +92,7 @@ function styles() {
   .dp-history b{color:var(--ink);font-weight:650}
   .dp-history div>span:last-child{white-space:nowrap;flex:0 0 auto}
   .dp-note{font-size:12.5px;color:var(--muted)}
+  .dp-checks{display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.45}
   .dp-busy{opacity:.55;pointer-events:none}
   .st-row-money{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
   .st-row-money b{color:var(--ink);font-weight:650}
@@ -317,8 +318,12 @@ const stepTab = {}
 function defaultStep(o, a) {
   if (['bought', 'purchased'].includes(o.status)) return 'buy'
   const deal = dealLog(o)
-  if (n(deal.agreed_price) !== null) return 'buy'
   if (isRetail(o)) return 'buy'
+  if (n(deal.agreed_price) !== null) {
+    if (!deal.arrangement) return 'arrange'
+    if (obj(deal.inspection).result !== 'pass') return 'inspect'
+    return 'buy'
+  }
   if (o.status === 'verify' || a?.recommendation === 'verify_first') return 'verify'
   if (o.status === 'negotiating' || a?.recommendation === 'negotiate') return 'negotiate'
   if (['buy', 'strong_buy'].includes(a?.recommendation)) {
@@ -353,7 +358,7 @@ async function openDeal(oppId) {
         <div class="dp-metric"><small>Max buy</small><b>${money(a.max_buy)}</b></div>
       </div>
       <div class="dp-steps" role="tablist">
-        ${[['verify', 'Verify'], ['negotiate', 'Negotiate'], ['buy', bought ? 'Bought' : 'I bought it']].map(([k, l]) => `<button class="dp-step ${step === k ? 'active' : ''} ${(k === 'verify' && arr(deal.replies).length) || (k === 'negotiate' && n(deal.agreed_price) !== null) || (k === 'buy' && bought) ? 'done' : ''}" data-dp-step="${k}">${l}</button>`).join('')}
+        ${(isRetail(o) ? [['verify', 'Check'], ['negotiate', 'Price'], ['buy', bought ? 'Bought' : 'I bought it']] : [['verify', 'Verify'], ['negotiate', 'Negotiate'], ['arrange', 'Arrange'], ['inspect', 'Inspect'], ['buy', bought ? 'Bought' : 'I bought it']]).map(([k, l]) => `<button class="dp-step ${step === k ? 'active' : ''} ${(k === 'verify' && arr(deal.replies).length) || (k === 'negotiate' && n(deal.agreed_price) !== null) || (k === 'arrange' && deal.arrangement) || (k === 'inspect' && obj(deal.inspection).result === 'pass') || (k === 'buy' && bought) ? 'done' : ''}" data-dp-step="${k}">${l}</button>`).join('')}
       </div>
       <div id="dpStep"></div>
       <div class="dp-card"><h3>History</h3><div class="dp-history" id="dpHistory"><div><span>Loading…</span></div></div></div>`
@@ -361,6 +366,8 @@ async function openDeal(oppId) {
     const mount = $('#dpStep', body)
     if (step === 'verify') verifyStep(mount, o, a)
     else if (step === 'negotiate') negotiateStep(mount, o, a)
+    else if (step === 'arrange') arrangeStep(mount, o, a)
+    else if (step === 'inspect') inspectStep(mount, o, a)
     else buyStep(mount, o, a)
     history($('#dpHistory', body), o)
   }
@@ -374,6 +381,8 @@ async function history(el, o) {
   const rows = arr(data).map(x => ({ at: x.analysed_at, text: `${obj(x.user_overrides).seller_reply ? 'Re-checked with seller reply' : 'Analysed'} → <b>${esc((REC[x.recommendation] || [x.recommendation || '—'])[0])}</b>${n(x.expected_profit) !== null ? ` · profit ${money(x.expected_profit)}` : ''}${n(x.max_buy) !== null ? ` · max ${money(x.max_buy)}` : ''}` }))
   arr(deal.counters).forEach(c => rows.push({ at: c.at, text: `Seller countered ${money(c.price)} → <b>${esc(ACTION_LABEL[c.action] || c.action)}</b>${n(c.reply_price) !== null ? ` at ${money(c.reply_price)}` : ''}` }))
   if (n(deal.agreed_price) !== null) rows.push({ at: deal.agreed_at, text: `Price agreed <b>${money(deal.agreed_price)}</b>` })
+  if (deal.arrangement) rows.push({ at: deal.arrangement.at, text: `Arranged <b>${deal.arrangement.method === 'ship' ? 'delivery' : 'pickup'}</b>${deal.arrangement.when ? ` · ${esc(deal.arrangement.when)}` : ''}` })
+  if (obj(deal.inspection).result) rows.push({ at: deal.inspection.at, text: `Inspection → <b>${esc({ pass: 'Passed', issue: 'Problem found', walk: 'Walked away' }[deal.inspection.result] || deal.inspection.result)}</b>${deal.inspection.notes ? ` · ${esc(deal.inspection.notes)}` : ''}` })
   rows.sort((x, y) => Date.parse(y.at || 0) - Date.parse(x.at || 0))
   el.innerHTML = rows.length ? rows.map(r => `<div><span>${r.text}</span><span>${r.at ? new Date(r.at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : ''}</span></div>`).join('') : '<div><span>No history yet.</span></div>'
 }
@@ -452,7 +461,7 @@ function negotiateStep(mount, o, a) {
       <p class="dp-note">Hard max is the most you can pay and still hit your target profit. Never go above it.</p>
       ${opener}
     </div>
-    ${n(deal.agreed_price) !== null ? `<div class="dp-card"><div class="dp-verdict accept"><strong>Price agreed: ${money(deal.agreed_price)}</strong>${pr(deal.agreed_price)}. Next: collect it, check it, then record the purchase.</div><div class="dp-actions"><button class="button primary" data-dp-goto="buy">Record the purchase</button><button class="sv-link" id="dpUnagree">Undo agreed price</button></div></div>` : `
+    ${n(deal.agreed_price) !== null ? `<div class="dp-card"><div class="dp-verdict accept"><strong>Price agreed: ${money(deal.agreed_price)}</strong>${pr(deal.agreed_price)}. Next: arrange pickup or delivery, check it, then record the purchase.</div><div class="dp-actions"><button class="button primary" data-dp-goto="arrange">Arrange pickup / delivery</button><button class="sv-link" id="dpUnagree">Undo agreed price</button></div></div>` : `
     <div class="dp-card" id="dpCounter"><h3>Seller countered?</h3>
       <div class="dp-grid"><label>Their price<input type="number" id="dpCounterPrice" min="0" step="1" placeholder="e.g. ${Math.round(env.max)}"></label><div style="display:flex;align-items:flex-end"><button class="button primary" id="dpClassify" style="width:100%">What should I do?</button></div></div>
       <div id="dpCounterResult"></div>
@@ -463,9 +472,9 @@ function negotiateStep(mount, o, a) {
   $('#dpUnagree', mount)?.addEventListener('click', () => withBusy(mount, async () => { await saveDeal(o, { agreed_price: null, agreed_at: null }); await refreshAll() }))
   const agree = (price, extra = {}) => withBusy(mount, async () => {
     await saveDeal(o, { ...extra, agreed_price: Number(price), agreed_at: new Date().toISOString() }, { status: 'negotiating' })
-    stepTab[o.id] = 'buy'
+    stepTab[o.id] = 'arrange'
     await refreshAll()
-    toast(`Agreed at ${money(price)}. Record the purchase once you have it.`)
+    toast(`Agreed at ${money(price)}. Next: arrange pickup or delivery.`)
   })
   $('#dpAgreeOpen', mount)?.addEventListener('click', () => agree(counters.length ? lastOffer : env.askUnderOpening ? env.ask : env.opening))
   $('#dpClassify', mount)?.addEventListener('click', () => {
@@ -489,6 +498,81 @@ function negotiateStep(mount, o, a) {
     }
     $('#dpAgree', mount)?.addEventListener('click', () => agree(price, { counters: [...counters, { at: new Date().toISOString(), price, action: 'accept', reply_price: price }] }))
   })
+}
+
+// Arrange: only the factors that matter for this transaction (pickup vs delivery).
+function arrangeStep(mount, o, a) {
+  const deal = dealLog(o)
+  const ar = obj(deal.arrangement)
+  const price = n(deal.agreed_price) ?? n(o.seller_asking_price)
+  const title = o.listing_title || a.identified_name || 'the item'
+  const method = ar.method || (o.listing_location ? 'pickup' : 'ship')
+  const tips = m => m === 'ship'
+    ? ['Pay with buyer protection: PayPal Goods & Services, eBay checkout or Facebook checkout — never a bank transfer or PayID to a stranger for a shipped item.', 'Ask for tracked postage and the tracking number before you consider it done.', `Ask for a photo of the item packed with today's date or your name if it's high value.`]
+    : ['Meet in daylight somewhere public or with people around (a shopping centre, or the seller\'s front door if it\'s a big item).', `Check the item before paying. Bring exact cash or pay by PayID once you're happy — ${money(price)} agreed.`, 'Bring a charger, cable or tape measure if you need to test or measure it.']
+  const msg = m => m === 'ship'
+    ? `Great, thanks! Could you post ${title} with tracking? I'll pay ${price !== null ? `$${Math.round(price)} ` : ''}via PayPal Goods & Services — could you send your PayPal email and the postage cost?`
+    : `Great, thanks! When suits for me to pick up ${title}? I can pay ${price !== null ? `$${Math.round(price)} ` : ''}cash or PayID on collection after a quick look over it.`
+  mount.innerHTML = `<div class="dp-card" id="dpArrange"><h3>Arrange the handover</h3>
+    <div class="dp-grid"><label>How are you getting it?<select id="dpMethod"><option value="pickup" ${method === 'pickup' ? 'selected' : ''}>I'll pick it up</option><option value="ship" ${method === 'ship' ? 'selected' : ''}>Seller posts it</option></select></label>
+      <label>When (optional)<input type="text" id="dpWhen" value="${esc(ar.when || '')}" placeholder="Sat 10am"></label></div>
+    <ul class="dp-list" id="dpTips"></ul>
+    <label>Message to send<textarea id="dpArrMsg"></textarea></label>
+    <div class="dp-actions"><button class="button secondary" id="dpCopyArr">Copy message</button><button class="button primary" id="dpArranged">It's arranged</button></div></div>`
+  const draw = () => { const m = $('#dpMethod', mount).value; $('#dpTips', mount).innerHTML = tips(m).map(t => `<li>${esc(t)}</li>`).join(''); $('#dpArrMsg', mount).value = msg(m) }
+  $('#dpMethod', mount).onchange = draw; draw()
+  $('#dpCopyArr', mount).onclick = () => copy($('#dpArrMsg', mount).value, 'Message copied — paste it to the seller.')
+  $('#dpArranged', mount).onclick = () => withBusy($('#dpArrange', mount), async () => {
+    await saveDeal(o, { arrangement: { method: $('#dpMethod', mount).value, when: $('#dpWhen', mount).value.trim(), at: new Date().toISOString() } })
+    stepTab[o.id] = 'inspect'
+    await refreshAll()
+    toast('Arranged. Check the item against the list before you pay.')
+  })
+}
+
+// Inspect: item-specific checks from the analysis, then pass / problem (re-check) / walk away.
+function inspectStep(mount, o, a) {
+  const deal = dealLog(o)
+  const ins = obj(deal.inspection)
+  const checks = arr(a.inspection_checks).map(c => typeof c === 'string' ? c : c?.check || c?.text || '').filter(Boolean)
+  const shipped = obj(deal.arrangement).method === 'ship'
+  mount.innerHTML = `<div class="dp-card" id="dpInspect"><h3>${shipped ? 'Check it when it arrives' : 'Check it before you pay'}</h3>
+    ${checks.length ? `<div class="dp-checks">${checks.map((c, i) => `<label style="flex-direction:row;align-items:flex-start;gap:10px;font-weight:500"><input type="checkbox" data-chk="${i}" style="margin-top:3px"> <span>${esc(c)}</span></label>`).join('')}</div>` : `<p>Check it matches the listing photos and description, and that it works.</p>`}
+    ${ins.result === 'issue' ? `<div class="dp-verdict hold"><strong>Problem noted</strong>${esc(ins.notes || '')}</div>` : ''}
+    <div class="dp-actions"><button class="button primary" id="dpPass">All good — buy it</button><button class="button secondary" id="dpIssue">Something's off</button><button class="sv-link" id="dpWalk">Walk away</button></div>
+    <div id="dpIssueBox"></div></div>`
+  const box = $('#dpInspect', mount)
+  $('#dpPass', mount).onclick = () => withBusy(box, async () => {
+    const unchecked = checks.length - $$('[data-chk]:checked', mount).length
+    await saveDeal(o, { inspection: { result: 'pass', unchecked, at: new Date().toISOString() } })
+    stepTab[o.id] = 'buy'
+    await refreshAll()
+  })
+  $('#dpWalk', mount).onclick = () => withBusy(box, async () => {
+    const now = new Date().toISOString()
+    await saveDeal(o, { inspection: { result: 'walk', at: now } }, { dismissed_at: now })
+    closePanel()
+    await app()?.refresh?.()
+    toast('Walked away — moved to Archived. There will be another one.')
+  })
+  $('#dpIssue', mount).onclick = () => {
+    $('#dpIssueBox', mount).innerHTML = `<label>What's wrong?<textarea id="dpIssueText" placeholder="e.g. scratch on the screen, missing charger, box damaged"></textarea></label>
+      <div class="dp-actions"><button class="button primary" id="dpIssueCheck">Re-check the price with this</button></div>
+      <p class="dp-note">FlippersAI re-values it with the problem and gives you a new maximum to renegotiate from (about 30–60 s).</p>`
+    $('#dpIssueCheck', mount).onclick = () => {
+      const text = $('#dpIssueText', mount).value.trim()
+      if (!text) { toast('Describe the problem first.'); return }
+      withBusy(box, async () => {
+        const x = await recheck(o, a, `Inspection before purchase found a problem not shown in the listing: ${text}. Re-value the item in this condition and set max_buy / recommended_offer for renegotiation.`, null)
+        await app()?.refresh?.({ render: false })
+        const fresh = oppById(o.id) || o
+        await saveDeal(fresh, { inspection: { result: 'issue', notes: text, at: new Date().toISOString() }, agreed_price: null, agreed_at: null })
+        stepTab[o.id] = 'negotiate'
+        await refreshAll()
+        toast(`Re-valued with the problem: max buy now ${money(x.max_buy)}. Renegotiate from here.`)
+      })
+    }
+  }
 }
 
 function buyStep(mount, o, a) {

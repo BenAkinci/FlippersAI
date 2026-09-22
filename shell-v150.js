@@ -84,6 +84,12 @@ function styles() {
   /* Inside Find the section header replaces legacy page titles/eyebrows and marketing blurbs. */
   .find-legacy .page-head .eyebrow,.find-legacy .page-head h1,.find-legacy .intel-intro{display:none!important}
   .find-legacy .page-head{padding-top:0!important;border-bottom:0!important;margin-bottom:8px!important}
+  /* v0.152: legacy page headers (Analyse, Capital, Learn) match the new section heads. */
+  .app-shell[data-view="analyse"] .page-head .eyebrow,.app-shell[data-view="capital"] .page-head .eyebrow,.app-shell[data-view="learn"] .page-head .eyebrow{display:none!important}
+  .app-shell[data-view="analyse"] .page-head,.app-shell[data-view="capital"] .page-head,.app-shell[data-view="learn"] .page-head{padding-top:0!important;border-bottom:0!important;margin-bottom:20px!important}
+  .app-shell[data-view="analyse"] .page-head h1,.app-shell[data-view="capital"] .page-head h1,.app-shell[data-view="learn"] .page-head h1{font-size:30px!important;letter-spacing:-.02em;margin:2px 0 0!important;line-height:1.15}
+  .app-shell[data-view="analyse"] .page-head p,.app-shell[data-view="capital"] .page-head p,.app-shell[data-view="learn"] .page-head p{margin:6px 0 0!important;color:var(--muted);font-size:15px!important;max-width:640px}
+  @media (max-width:860px){.app-shell[data-view="analyse"] .page-head h1,.app-shell[data-view="capital"] .page-head h1,.app-shell[data-view="learn"] .page-head h1{font-size:26px!important}}
   .radar-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
   @media (max-width:860px){.sv-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.sv-head h1{font-size:26px}}
   @media (max-width:560px){.sv-tabs{gap:0}.sv-tab{flex:1 1 0;min-width:0;padding:10px 4px;font-size:13px;line-height:1.25;text-align:center;white-space:normal}.sv-row{grid-template-columns:1fr}.sv-row-actions{justify-content:flex-start;flex-wrap:wrap}.sv-row-title{white-space:normal}}
@@ -139,7 +145,12 @@ function nextAction(o, a) {
   if (stage === 'bought') return { label: 'View in Stock', kind: 'stock' }
   if (!a) return { label: 'Analyse', kind: 'analyse' }
   const agreed = n(o.raw_listing?.deal?.agreed_price)
-  if (agreed !== null && hasPanel) return { label: 'Record purchase', kind: 'deal' }
+  if (agreed !== null && hasPanel) {
+    const d = o.raw_listing?.deal || {}
+    if (!d.arrangement) return { label: 'Arrange pickup', kind: 'deal' }
+    if (d.inspection?.result !== 'pass') return { label: 'Inspect', kind: 'deal' }
+    return { label: 'Record purchase', kind: 'deal' }
+  }
   if (hasPanel && window.flippersDeal.isRetail?.(o) && a.recommendation !== 'skip') return { label: 'Buy it', kind: 'deal' }
   if (stage === 'verify' || a.recommendation === 'verify_first') {
     if (hasPanel) return { label: 'Verify with seller', kind: 'deal' }
