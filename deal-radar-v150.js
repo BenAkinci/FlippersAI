@@ -1,4 +1,5 @@
-// v0.144: Deal Radar on the Intel page ("Today's flips").
+// v0.150: Deal Radar component. Exposes window.flippersRadar.mount(container, { compact })
+// used by Find > Radar (full) and Today (compact, top 3). No longer attaches to Intel.
 // Reads qualified deals written by the deal-radar Edge Function (radar_deals,
 // RLS: authenticated read of qualified rows only). "Check now" calls the
 // function, which rate-limits itself server-side. Every control does real work.
@@ -134,29 +135,28 @@ function body() {
   return `<div class="radar-grid">${state.deals.map(card).join('')}</div>`
 }
 
+let mountEl = null
+let compact = false
+
 function render() {
-  const head = $('.community-head')
-  if (!head) return
-  // Backend not deployed/enabled: show nothing rather than a control that cannot work.
-  if (state.unavailable) { $('#dealRadar')?.remove(); return }
+  const el = mountEl
+  if (!el || !el.isConnected) return
   injectStyles()
-  const anchor = $('#platformIntelPersonal') || head
-  let el = $('#dealRadar')
-  if (!el) {
-    el = document.createElement('section')
-    el.id = 'dealRadar'
-    el.className = 'radar'
-    anchor.insertAdjacentElement('afterend', el)
-  } else if (anchor !== head && el.previousElementSibling !== anchor) {
-    anchor.insertAdjacentElement('afterend', el)
-  }
+  if (state.unavailable) { el.innerHTML = ''; return }
+  el.classList.add('radar')
   const check = canCheck()
   const r = state.lastRun
   const checkTitle = check ? 'Check the latest deals now (takes about 2 minutes)' : (state.polling || isRunning(r)) ? 'A check is running' : `Checked ${ago(r?.started_at)} — available again ${MIN_GAP_MIN} minutes after the last check`
-  el.innerHTML = `<div class="radar-head"><div><span class="eyebrow">DEAL RADAR</span><h2>Today's flips</h2><p>New retail deals checked against Australian resale prices. Only items with evidence of real profit after fees make it here.</p></div>
-    <div class="radar-meta"><span>${esc(runLine())}</span><button type="button" class="button secondary" id="radarCheck" ${check ? '' : 'disabled'} title="${esc(checkTitle)}">${state.polling || isRunning(r) ? 'Checking…' : 'Check now'}</button></div></div>
-    ${body()}`
-  $('#radarCheck', el)?.addEventListener('click', checkNow)
+  if (compact) {
+    const top = (state.deals || []).slice(0, 3)
+    el.innerHTML = `<div class="radar-head"><div><h2>Best flips right now</h2><p>${esc(runLine())}</p></div><button type="button" class="button secondary" data-shell-go="find">See all</button></div>
+      ${state.deals === null ? '<div class="radar-empty">Loading…</div>' : top.length ? `<div class="radar-grid">${top.map(card).join('')}</div>` : `<div class="radar-empty"><strong>No flips passed the profit bar in the last ${WINDOW_HOURS} hours.</strong> Radar checks again daily at 8am.</div>`}`
+  } else {
+    el.innerHTML = `<div class="radar-head"><div><h2>Retail flips</h2><p>New Australian retail deals checked against resale prices. Only items with evidence of real profit after fees appear here.</p></div>
+      <div class="radar-meta"><span>${esc(runLine())}</span><button type="button" class="button secondary" id="radarCheck" ${check ? '' : 'disabled'} title="${esc(checkTitle)}">${state.polling || isRunning(r) ? 'Checking…' : 'Check now'}</button></div></div>
+      ${body()}`
+  }
+  el.querySelector('#radarCheck')?.addEventListener('click', checkNow)
   el.querySelectorAll('[data-radar-analyse]').forEach(b => b.addEventListener('click', () => analyse(state.deals[Number(b.dataset.radarAnalyse)])))
 }
 
@@ -228,20 +228,15 @@ function analyse(d) {
   window.dispatchEvent(new CustomEvent('flippers:analyse-prefill'))
 }
 
-// Mount when the Intel page renders; reload data at most once per page visit.
-let mountedFor = null
-let headSeenAt = 0
-function mount() {
-  const head = $('.community-head')
-  if (!head) { mountedFor = null; headSeenAt = 0; return }
-  // Wait briefly for the 'For you' panel so Radar is placed once, below it, without a jump.
-  if (!headSeenAt) { headSeenAt = Date.now(); setTimeout(mount, 2600) }
-  if (!$('#platformIntelPersonal') && Date.now() - headSeenAt < 2500) return
-  if ($('#dealRadar') && $('#platformIntelPersonal') && $('#dealRadar').previousElementSibling !== $('#platformIntelPersonal')) render()
-  if (!$('#dealRadar') && !state.unavailable) render()
-  if (mountedFor !== head) { mountedFor = head; state.deals = null; render(); load() }
+// Public API: mount into any container. Data is fetched once and cached for 5 minutes.
+let loadedAt = 0
+window.flippersRadar = {
+  mount(container, opts = {}) {
+    mountEl = container
+    compact = Boolean(opts.compact)
+    render()
+    if (!loadedAt || Date.now() - loadedAt > 5 * 60000) { loadedAt = Date.now(); state.deals = null; render(); load() }
+  },
+  get deals() { return state.deals }
 }
-const app = document.getElementById('app')
-let t
-if (app) new MutationObserver(() => { clearTimeout(t); t = setTimeout(mount, 80) }).observe(app, { childList: true, subtree: true })
-mount()
+window.dispatchEvent(new CustomEvent('flippers:radar-ready'))

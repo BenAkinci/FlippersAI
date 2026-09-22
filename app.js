@@ -12,7 +12,7 @@ const app = $('#app')
 const state = {
   session: null,
   bundle: null,
-  view: 'home',
+  view: 'today',
   focusWorkflowId: null,
   opps: [],
   inventory: [],
@@ -50,7 +50,9 @@ const iconPaths = {
   cash: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M7 9H5v6h2M17 9h2v6h-2"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  menu: '<path d="M5 7h14M5 12h14M5 17h14"/>'
+  menu: '<path d="M5 7h14M5 12h14M5 17h14"/>',
+  find: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/>',
+  pipeline: '<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/>'
 }
 const icon = (name, size = 20) => `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[name] || ''}</svg>`
 
@@ -69,8 +71,12 @@ function busy(on) {
   $$('button').forEach(b => { b.disabled = on })
 }
 
+// v0.150: sections are Today, Find, Analyse, Pipeline, Stock. Legacy view names map
+// onto them so old links and layers keep working.
+const VIEW_ALIASES = { home:'today', deals:'pipeline' }
+
 function route(view) {
-  state.view = view
+  state.view = VIEW_ALIASES[view] || view
   state.temp = {}
   render()
   window.scrollTo({ top: 0, behavior: 'instant' })
@@ -217,11 +223,11 @@ async function refresh() {
 }
 
 const navItems = [
-  ['home', 'Home', 'home'],
+  ['today', 'Today', 'home'],
+  ['find', 'Find', 'find'],
   ['analyse', 'Analyse', 'analyse'],
-  ['deals', 'Deals', 'deals'],
-  ['inventory', 'Inventory', 'inventory'],
-  ['learn', 'Learn', 'learn']
+  ['pipeline', 'Pipeline', 'pipeline'],
+  ['inventory', 'Stock', 'inventory']
 ]
 
 function navMarkup(mobile = false) {
@@ -238,7 +244,7 @@ function shell(content) {
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar-inner">
-          <button class="brand brand-button" data-nav="home"><span class="brand-mark">${icon('spark', 18)}</span><span>FlippersAI</span></button>
+          <button class="brand brand-button" data-nav="today"><span class="brand-mark">${icon('spark', 18)}</span><span>FlippersAI</span></button>
           <nav class="desktop-nav">${navMarkup(false)}</nav>
           <div class="account-wrap">
             <button class="avatar" id="accountButton" aria-label="Account">${esc(initial)}</button>
@@ -251,6 +257,7 @@ function shell(content) {
                 <button data-guidance="fast" class="${profile.guidance_level === 'fast' ? 'active' : ''}">Fast</button>
               </div>
               <button class="popover-action" data-nav="capital">${icon('wallet', 17)} Capital & history</button>
+              <button class="popover-action" data-nav="learn">${icon('learn', 17)} Learn to resell</button>
               <button class="popover-action" id="logoutButton">${icon('user', 17)} Sign out</button>
             </div>
           </div>
@@ -278,8 +285,21 @@ function closeAccountPopover(e) {
   if (!e.target.closest?.('.account-wrap')) $('#accountPopover')?.classList.remove('open')
 }
 
+// Views provided by shell-v150.js (Today, Find, Pipeline). App owns routing and the shell;
+// the module owns page content.
+function externalView(name) {
+  const view = window.flippersViews?.[name]
+  shell(`<div id="shellView" class="shell-view" data-view="${esc(name)}"></div>`)
+  if (!view) { $('#shellView').innerHTML = '<div class="shell-loading">Loading…</div>'; return }
+  view($('#shellView'), { state, route, refresh, supabase })
+}
+window.addEventListener('flippers:views-ready', () => { if (['today', 'find', 'pipeline'].includes(state.view)) render() })
+window.flippersApp = { state, route, refresh, get view() { return state.view } }
+
 function render() {
   if (!state.bundle) return
+  if (state.view === 'today' && !state.bundle.onboarding?.completed) return onboardingPage()
+  if (['today', 'find', 'pipeline'].includes(state.view)) return externalView(state.view)
   if (state.view === 'home') return homePage()
   if (state.view === 'analyse') return analysePage()
   if (state.view === 'deals') return dealsPage()
