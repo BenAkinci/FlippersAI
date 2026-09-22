@@ -10,7 +10,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import OpenAI from 'npm:openai'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const ENGINE = 'deal-radar-v2.2'
+const ENGINE = 'deal-radar-v2.3'
 // v2.2: more sources. All feeds verified 2026-09-22. OzBargain rate-limits (HTTP 429) rapid
 // requests, so core feeds are fetched every run and the brand/category feeds rotate: each run
 // takes the next ROTATE_PER_RUN of them (a full cycle every few runs), with a pause between.
@@ -205,8 +205,22 @@ function economics(x: any, buy: number, delivery: number | null) {
   return { selling: round2(selling), shipIn, profit, roi, target: round2(target), maxBuy }
 }
 
-function qualifies(x: any, e: ReturnType<typeof economics>) {
+// v2.3 honesty rules: asking prices overstate what things sell for, so 'active'-only evidence is
+// discounted by ACTIVE_HAIRCUT before economics, and a resale over TOO_GOOD_MULTIPLE x the buy price
+// needs actual sold prices to qualify.
+const ACTIVE_HAIRCUT = 0.85
+const TOO_GOOD_MULTIPLE = 2
+function haircut(x: any) {
+  if (x.resale_basis !== 'active') return x
+  const h = (v: unknown) => num(v) === null ? null : round2(Number(v) * ACTIVE_HAIRCUT)
+  return { ...x, resale_low: h(x.resale_low), resale_mid: h(x.resale_mid), resale_high: h(x.resale_high) }
+}
+function tooGood(basis: string, mid: number | null, buy: number | null) {
+  return basis !== 'sold' && mid !== null && buy !== null && buy > 0 && mid > buy * TOO_GOOD_MULTIPLE
+}
+function qualifies(x: any, e: ReturnType<typeof economics>, buy?: number) {
   if (!e) return 'No usable resale evidence found'
+  if (tooGood(x.resale_basis, num(x.resale_mid), buy ?? null)) return 'Margin looks too good without sold prices to prove it'
   const urls = (x.evidence || []).filter((v: any) => /^https?:\/\//.test(v?.url || '') && v.kind !== 'retail')
   if (!['sold', 'active'].includes(x.resale_basis)) return 'Resale price is only an estimate'
   if (urls.length < 2) return 'Fewer than two resale evidence sources'
@@ -323,9 +337,9 @@ async function run(db: any, client: OpenAI, runId: string) {
   }
 
   const results = await mapLimit(picked, EVAL_CONCURRENCY, async p => {
-    const x = await evaluate(client, p.name, p.buy, p.it)
+    const x = haircut(await evaluate(client, p.name, p.buy, p.it))
     const e = economics(x, p.buy, p.delivery)
-    const reason = qualifies(x, e)
+    const reason = qualifies(x, e, p.buy)
     const row = {
       ...base(p.it), product_name: clean(x.product_name || p.name, 300), buy_price: p.buy, buy_shipping: p.delivery, currency: 'AUD',
       resale_low: num(x.resale_low), resale_mid: num(x.resale_mid), resale_high: num(x.resale_high), resale_basis: x.resale_basis,
@@ -341,6 +355,17 @@ async function run(db: any, client: OpenAI, runId: string) {
   stats.evaluated = results.filter(r => r.status === 'fulfilled').length
   stats.qualified = results.filter(r => r.status === 'fulfilled' && r.value === 'qualified').length
   const evalErrors = results.filter(r => r.status === 'rejected').map(r => clean(errText((r as PromiseRejectedResult).reason), 200))
+  // Re-check deals qualified by older rules in the last 14 days against the current honesty rules.
+  const { data: live } = await db.from('radar_deals').select('source_url,resale_basis,resale_mid,buy_price,engine_version').eq('status', 'qualified').gte('checked_at', new Date(Date.now() - 14 * 86400000).toISOString())
+  let demoted = 0
+  for (const d of live || []) {
+    if ((d as any).engine_version === ENGINE) continue
+    if (tooGood((d as any).resale_basis, num((d as any).resale_mid), num((d as any).buy_price))) {
+      await db.from('radar_deals').update({ status: 'rejected', reject_reason: 'Margin looks too good without sold prices to prove it (re-checked)', updated_at: new Date().toISOString() }).eq('source_url', (d as any).source_url)
+      demoted++
+    }
+  }
+  ;(stats as any).demoted = demoted
   await db.from('radar_runs').update({ finished_at: new Date().toISOString(), stats: { ...stats, eval_errors: evalErrors }, status: 'finished' }).eq('id', runId)
 }
 
