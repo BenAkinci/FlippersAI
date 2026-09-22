@@ -115,7 +115,7 @@ function runLine() {
 function canCheck() {
   const r = state.lastRun
   if (state.polling || r?.status === 'running') return false
-  if (!r) return true
+  if (!r || r.status === 'error') return true
   return Date.now() - Date.parse(r.started_at) > MIN_GAP_MIN * 60000
 }
 

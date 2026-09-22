@@ -9,7 +9,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import OpenAI from 'npm:openai'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const ENGINE = 'deal-radar-v2'
+const ENGINE = 'deal-radar-v2.1'
 // v2: wider net. Verified feeds only (checked 2026-09-22); fetched sequentially with a
 // pause because OzBargain rate-limits (HTTP 429) rapid requests.
 const OZB = 'https://www.ozbargain.com.au'
@@ -38,6 +38,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const clean = (v: unknown, max = 2000) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
 const num = (v: unknown) => { if (v === null || v === undefined || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null }
 const round2 = (n: number) => Math.round(n * 100) / 100
+const errText = (e: any) => e instanceof Error ? e.message : (e?.message || e?.error || (() => { try { return JSON.stringify(e) } catch { return String(e) } })())
 
 // ---------- RSS ----------
 type FeedItem = { title: string, link: string, description: string, categories: string[], pubDate: string | null,
@@ -216,10 +217,14 @@ async function run(db: any, client: OpenAI, runId: string) {
   stats.fetched = all.size
   if (!all.size) throw new Error(`No deals fetched. ${stats.feed_errors.join('; ')}`)
 
+  // Look up already-evaluated deals in chunks: one long in() list overflows the request URL.
   const links = [...all.keys()]
-  const { data: seen, error: seenErr } = await db.from('radar_deals').select('source_url').in('source_url', links)
-  if (seenErr) throw seenErr
-  const seenSet = new Set((seen || []).map((r: any) => r.source_url))
+  const seenSet = new Set<string>()
+  for (let i = 0; i < links.length; i += 40) {
+    const { data: seen, error: seenErr } = await db.from('radar_deals').select('source_url').in('source_url', links.slice(i, i + 40))
+    if (seenErr) throw new Error(`Seen-deal lookup failed: ${seenErr.message || seenErr.code || 'unknown'}`)
+    for (const r of seen || []) seenSet.add((r as any).source_url)
+  }
   const fresh = [...all.values()].filter(it => !seenSet.has(it.link))
   stats.fresh = fresh.length
 
@@ -272,8 +277,10 @@ async function run(db: any, client: OpenAI, runId: string) {
   }
 
   if (rejected.length) {
-    const { error } = await db.from('radar_deals').upsert(rejected, { onConflict: 'source_url', ignoreDuplicates: true })
-    if (error) throw error
+    for (let i = 0; i < rejected.length; i += 100) {
+      const { error } = await db.from('radar_deals').upsert(rejected.slice(i, i + 100), { onConflict: 'source_url', ignoreDuplicates: true })
+      if (error) throw new Error(`Saving rejected deals failed: ${error.message || error.code || 'unknown'}`)
+    }
   }
 
   const results = await mapLimit(picked, EVAL_CONCURRENCY, async p => {
@@ -289,12 +296,12 @@ async function run(db: any, client: OpenAI, runId: string) {
       status: reason ? 'rejected' : 'qualified', reject_reason: reason || null
     }
     const { error } = await db.from('radar_deals').upsert(row, { onConflict: 'source_url' })
-    if (error) throw error
+    if (error) throw new Error(`Saving evaluated deal failed: ${error.message || error.code || 'unknown'}`)
     return row.status
   })
   stats.evaluated = results.filter(r => r.status === 'fulfilled').length
   stats.qualified = results.filter(r => r.status === 'fulfilled' && r.value === 'qualified').length
-  const evalErrors = results.filter(r => r.status === 'rejected').map(r => clean((r as PromiseRejectedResult).reason?.message || r, 200))
+  const evalErrors = results.filter(r => r.status === 'rejected').map(r => clean(errText((r as PromiseRejectedResult).reason), 200))
   await db.from('radar_runs').update({ finished_at: new Date().toISOString(), stats: { ...stats, eval_errors: evalErrors }, status: 'finished' }).eq('id', runId)
 }
 
@@ -309,15 +316,15 @@ Deno.serve(async req => {
 
   // Rate limit: at most one run per MIN_RUN_GAP_MINUTES regardless of caller.
   const since = new Date(Date.now() - MIN_RUN_GAP_MINUTES * 60000).toISOString()
-  const { data: recent } = await db.from('radar_runs').select('id,started_at,status').gte('started_at', since).order('started_at', { ascending: false }).limit(1)
+  const { data: recent } = await db.from('radar_runs').select('id,started_at,status').gte('started_at', since).neq('status', 'error').order('started_at', { ascending: false }).limit(1)
   if (recent?.length) return json({ ok: true, skipped: true, reason: 'Checked recently', last_run: recent[0] })
 
   const { data: runRow, error } = await db.from('radar_runs').insert({ trigger, status: 'running', engine_version: ENGINE }).select('id').single()
   if (error) return json({ ok: false, error: 'Could not start radar run' }, 500)
   const client = new OpenAI({ apiKey: key, maxRetries: 0 })
   const task = run(db, client, runRow.id).catch(async e => {
-    console.error(ENGINE, { runId: runRow.id, error: e instanceof Error ? e.message : String(e) })
-    await db.from('radar_runs').update({ finished_at: new Date().toISOString(), status: 'error', error: clean(e instanceof Error ? e.message : e, 500) }).eq('id', runRow.id)
+    console.error(ENGINE, { runId: runRow.id, error: errText(e) })
+    await db.from('radar_runs').update({ finished_at: new Date().toISOString(), status: 'error', error: clean(errText(e), 500) }).eq('id', runRow.id)
   })
   // Respond immediately; the check continues in the background.
   ;(globalThis as any).EdgeRuntime?.waitUntil?.(task)
