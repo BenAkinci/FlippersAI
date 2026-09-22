@@ -9,7 +9,7 @@ const hq = read('website-hq-v086.js')
 const fn = read('supabase/functions/deal-radar/index.ts')
 const sql = read('supabase/migrations/20260920120000_deal_radar_v1.sql')
 
-must(index.includes('deal-radar-v144.js?v=0.145.1'), 'Deal Radar is not loaded by index.html')
+must(index.includes('deal-radar-v144.js?v=0.145.2'), 'Deal Radar is not loaded by index.html')
 must(index.includes('analyse-prefill-v144.js?v=0.144.0'), 'Analyse prefill is not loaded by index.html')
 must(index.indexOf('analyse-fast-extraction-sync-v118.js') < index.indexOf('analyse-prefill-v144.js'), 'Prefill must load after the Analyse form layers')
 

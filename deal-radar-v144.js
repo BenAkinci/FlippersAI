@@ -85,7 +85,7 @@ function card(d, i) {
       <span class="radar-chip ${basisClass}">${esc(BASIS[d.resale_basis] || 'Evidence')}</span>
       <span class="radar-chip">${esc(`${d.confidence ?? 0}% confidence`)}</span>
       ${d.demand && d.demand !== 'unknown' ? `<span class="radar-chip">${esc(`${d.demand[0].toUpperCase()}${d.demand.slice(1)} demand`)}</span>` : ''}
-      ${risks.map(r => `<span class="radar-chip warn">${esc(r)}</span>`).join('')}
+      ${risks.map(r => { const t = String(r); const short = t.length > 48 ? `${t.slice(0, 46).replace(/[\s,;:.—-]+\S*$/, '')}…` : t; return `<span class="radar-chip warn" title="${esc(t)}">${esc(short)}</span>` }).join('')}
     </div>
     <details><summary>Evidence and maths</summary>
       <ul>
@@ -105,16 +105,20 @@ function card(d, i) {
 function runLine() {
   const r = state.lastRun
   if (!r) return 'Not checked yet'
-  if (r.status === 'running') return 'Checking deals now…'
+  if (isRunning(r)) return 'Checking deals now…'
+  if (r.status === 'running') return `Last check did not finish (${ago(r.started_at)})`
   const s = r.stats || {}
   const when = ago(r.finished_at || r.started_at)
   if (r.status === 'error') return `Last check failed ${when}`
   return `Last checked ${when}${Number.isFinite(s.fetched) ? ` · ${s.fetched} deals scanned, ${s.evaluated ?? 0} price-checked` : ''}${SCHEDULE_ENABLED ? ` · checks ${nextScheduled()}` : ''}`
 }
 
+const STALE_RUN_MS = 5 * 60000
+const isRunning = r => r?.status === 'running' && Date.now() - Date.parse(r.started_at) < STALE_RUN_MS
+
 function canCheck() {
   const r = state.lastRun
-  if (state.polling || r?.status === 'running') return false
+  if (state.polling || isRunning(r)) return false
   if (!r || r.status === 'error') return true
   return Date.now() - Date.parse(r.started_at) > MIN_GAP_MIN * 60000
 }
@@ -122,7 +126,7 @@ function canCheck() {
 function body() {
   if (state.error) return `<div class="radar-empty"><strong>Deal Radar couldn't load.</strong> ${esc(state.error)}</div>`
   if (state.deals === null) return `<div class="radar-empty">Loading today's flips…</div>`
-  if (!state.deals.length && (state.polling || state.lastRun?.status === 'running')) return `<div class="radar-empty"><strong>Checking the latest deals…</strong> This takes about 2 minutes. Results appear here automatically.</div>`
+  if (!state.deals.length && (state.polling || isRunning(state.lastRun))) return `<div class="radar-empty"><strong>Checking the latest deals…</strong> This takes about 2 minutes. Results appear here automatically.</div>`
   if (!state.deals.length) {
     if (!state.lastRun) return `<div class="radar-empty"><strong>Deal Radar hasn't run yet.</strong> It checks Australian retail deals against current resale prices and only shows items with a real profit margin.</div>`
     return `<div class="radar-empty"><strong>Nothing passed the profit bar in the last ${WINDOW_HOURS} hours.</strong> Radar only shows deals where resale evidence supports at least A$25 or 20% profit after fees. Meanwhile, use Analyse on any listing you find.</div>`
@@ -148,9 +152,9 @@ function render() {
   }
   const check = canCheck()
   const r = state.lastRun
-  const checkTitle = check ? 'Check the latest deals now (takes about 2 minutes)' : (state.polling || r?.status === 'running') ? 'A check is running' : `Checked ${ago(r?.started_at)} — available again ${MIN_GAP_MIN} minutes after the last check`
+  const checkTitle = check ? 'Check the latest deals now (takes about 2 minutes)' : (state.polling || isRunning(r)) ? 'A check is running' : `Checked ${ago(r?.started_at)} — available again ${MIN_GAP_MIN} minutes after the last check`
   el.innerHTML = `<div class="radar-head"><div><span class="eyebrow">DEAL RADAR</span><h2>Today's flips</h2><p>New retail deals checked against Australian resale prices. Only items with evidence of real profit after fees make it here.</p></div>
-    <div class="radar-meta"><span>${esc(runLine())}</span><button type="button" class="button secondary" id="radarCheck" ${check ? '' : 'disabled'} title="${esc(checkTitle)}">${state.polling || r?.status === 'running' ? 'Checking…' : 'Check now'}</button></div></div>
+    <div class="radar-meta"><span>${esc(runLine())}</span><button type="button" class="button secondary" id="radarCheck" ${check ? '' : 'disabled'} title="${esc(checkTitle)}">${state.polling || isRunning(r) ? 'Checking…' : 'Check now'}</button></div></div>
     ${body()}`
   $('#radarCheck', el)?.addEventListener('click', checkNow)
   el.querySelectorAll('[data-radar-analyse]').forEach(b => b.addEventListener('click', () => analyse(state.deals[Number(b.dataset.radarAnalyse)])))
@@ -193,7 +197,7 @@ async function checkNow() {
       await new Promise(r => setTimeout(r, 10000))
       const { data: runs } = await supabase.from('radar_runs').select('*').order('started_at', { ascending: false }).limit(1)
       state.lastRun = runs?.[0] || state.lastRun
-      if (state.lastRun?.status !== 'running') break
+      if (!isRunning(state.lastRun)) break
       render()
     }
   } catch (e) {
