@@ -72,26 +72,4 @@ revoke insert, update, delete on public.radar_runs from anon, authenticated;
 revoke all on public.radar_deals from anon;
 revoke all on public.radar_runs from anon;
 
--- Schedule: 08:00 and 18:00 Melbourne (AEST, UTC+10) = 22:00 and 08:00 UTC.
--- The function rate-limits itself, so a manual "Check now" cannot double-spend.
--- Uses the public publishable key (already shipped in the frontend); no secret stored.
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-
-select cron.unschedule(jobid) from cron.job where jobname = 'deal-radar-twice-daily';
-select cron.schedule(
-  'deal-radar-twice-daily',
-  '0 8,22 * * *',
-  $$
-  select net.http_post(
-    url := 'https://msmpigerejpxepkylkxz.supabase.co/functions/v1/deal-radar',
-    headers := jsonb_build_object(
-      'Content-Type','application/json',
-      'apikey','sb_publishable_PtTF2JaOtkV86zDg_Vf-bw_Vg0nCSpZ',
-      'Authorization','Bearer sb_publishable_PtTF2JaOtkV86zDg_Vf-bw_Vg0nCSpZ'
-    ),
-    body := '{"trigger":"cron"}'::jsonb,
-    timeout_milliseconds := 10000
-  );
-  $$
-);
+-- Scheduling moved to 20260922090000_deal_radar_daily_schedule.sql (daily).

@@ -11,8 +11,8 @@ const money = v => v === null || v === undefined || !Number.isFinite(Number(v)) 
 const pct = v => v === null || v === undefined || !Number.isFinite(Number(v)) ? '—' : `${Math.round(Number(v))}%`
 const WINDOW_HOURS = 72
 const MIN_GAP_MIN = 45
-// Set true only once the twice-daily pg_cron job is actually enabled.
-const SCHEDULE_ENABLED = false
+// True only while the daily pg_cron job (migration 20260922090000) is enabled.
+const SCHEDULE_ENABLED = true
 const BASIS = { sold: 'Sold prices', active: 'Active listings', estimate: 'Estimate', none: 'No evidence' }
 
 let state = { deals: null, lastRun: null, error: '', polling: false, loading: false, unavailable: false }
@@ -26,12 +26,8 @@ function ago(iso) {
 }
 
 function nextScheduled() {
-  // 08:00 and 18:00 Melbourne time (UTC+10 schedule).
-  const now = new Date()
-  const utcH = now.getUTCHours() + now.getUTCMinutes() / 60
-  const slots = [8, 22]
-  const next = slots.find(h => h > utcH)
-  return next === 8 ? '6pm' : next === 22 ? '8am' : '6pm'
+  // pg_cron runs daily at 22:00 UTC = 8am Melbourne (9am during daylight saving).
+  return 'daily at 8am'
 }
 
 function injectStyles() {
@@ -113,7 +109,7 @@ function runLine() {
   const s = r.stats || {}
   const when = ago(r.finished_at || r.started_at)
   if (r.status === 'error') return `Last check failed ${when}`
-  return `Last checked ${when}${Number.isFinite(s.fetched) ? ` · ${s.fetched} deals scanned, ${s.evaluated ?? 0} price-checked` : ''}${SCHEDULE_ENABLED ? ` · next check ${nextScheduled()}` : ''}`
+  return `Last checked ${when}${Number.isFinite(s.fetched) ? ` · ${s.fetched} deals scanned, ${s.evaluated ?? 0} price-checked` : ''}${SCHEDULE_ENABLED ? ` · checks ${nextScheduled()}` : ''}`
 }
 
 function canCheck() {
