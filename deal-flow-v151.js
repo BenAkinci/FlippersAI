@@ -90,6 +90,7 @@ function styles() {
   .dp-history div{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:6px}
   .dp-history div:first-child{border-top:0;padding-top:0}
   .dp-history b{color:var(--ink);font-weight:650}
+  .dp-history div>span:last-child{white-space:nowrap;flex:0 0 auto}
   .dp-note{font-size:12.5px;color:var(--muted)}
   .dp-busy{opacity:.55;pointer-events:none}
   .st-row-money{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
@@ -147,6 +148,12 @@ const REC = { strong_buy: ['Strong buy', 'good'], buy: ['Buy', 'good'], negotiat
 function latest(oppId) { return (state().analyses || []).find(a => a.opportunity_id === oppId) || null }
 function oppById(id) { return (state().opps || []).find(o => o.id === id) || null }
 function dealLog(o) { return obj(obj(o.raw_listing).deal) }
+// Retail deals (Deal Radar / store pages) have a fixed price — no seller to message or haggle with.
+const RETAIL = /(^|\.)(amazon\.com\.au|amazon\.com|bigw\.com\.au|jbhifi\.com\.au|kmart\.com\.au|target\.com\.au|harveynorman\.com\.au|officeworks\.com\.au|ebgames\.com\.au|myer\.com\.au|davidjones\.com|catch\.com\.au|thegoodguys\.com\.au|bunnings\.com\.au|rebelsport\.com\.au|jdsports\.com\.au|lego\.com|costco\.com\.au|aldi\.com\.au|woolworths\.com\.au|coles\.com\.au|dickSmith\.com\.au|mwave\.com\.au|scorptec\.com\.au|pbtech\.com|apple\.com|samsung\.com|nike\.com|adidas\.com\.au|zavvi\.com\.au|bestbuy\.com)$/i
+function isRetail(o) {
+  if (obj(o.raw_listing).source === 'deal_radar') return true
+  try { return RETAIL.test(new URL(o.source_url).hostname.replace(/^www\./, '')) } catch { return false }
+}
 
 // Profit/ROI at any price, derived from the analysis numbers at the listed ask.
 function economics(o, a) {
@@ -242,22 +249,30 @@ async function loadImages(opportunityId) {
 
 // ---------------------------------------------------------------- re-check with seller reply
 const STATUS_FOR_REC = { strong_buy: 'ready', buy: 'ready', negotiate: 'negotiating', verify_first: 'verify', skip: 'skipped' }
-async function recheck(o, a, reply, files) {
+async function recheck(o, a, reply, files, shipOverride = null) {
   const u = await user()
   if (files?.length) await uploadImages(o.id, files, 'seller_reply_image')
   const images = await loadImages(o.id)
   const raw = obj(o.raw_listing)
   const bundle = state().bundle || {}
   const profile = bundle.profile || {}, portfolio = bundle.portfolio || {}
+  // Acquisition shipping is required for profit; use what was saved, else what the previous analysis used.
+  const prevX = obj(obj(a?.raw_model_output).analysis)
+  let shipping = n(shipOverride) ?? n(raw.shipping_cost) ?? n(prevX.acquisition_shipping_cost) ?? n(obj(a?.user_overrides).shipping_cost)
+  if (shipping === null) {
+    const { data: past } = await supabase.from('analyses').select('raw_model_output,user_overrides').eq('opportunity_id', o.id).order('analysed_at', { ascending: false }).limit(10)
+    for (const p of arr(past)) { const v = n(obj(obj(p.raw_model_output).analysis).acquisition_shipping_cost) ?? n(obj(p.user_overrides).shipping_cost); if (v !== null) { shipping = v; break } }
+  }
   const sellerUpdate = reply || 'The seller reply is in the newly supplied screenshot image(s). Extract and use the new seller information.'
   const body = {
     listing_url: o.source_url || '', listing_text: o.listing_text || '',
     platform_fields: {
       asking_price: o.seller_asking_price, currency: o.currency || 'AUD', asking_price_verified: o.seller_asking_price != null, asking_price_confidence: o.seller_asking_price != null ? 1 : 0,
       listing_title: o.listing_title, listing_location: o.listing_location, seller_name: o.seller_name, seller_rating: o.seller_rating, seller_review_count: o.seller_review_count,
-      condition: raw.condition || '', size: raw.size || '', colour: raw.colour || '', source_platform: o.source_platform || ''
+      condition: raw.condition || '', size: raw.size || '', colour: raw.colour || '', source_platform: o.source_platform || '',
+      brand: raw.brand || a?.brand || '', shipping_cost: shipping, acquisition_shipping_cost: shipping
     },
-    user_overrides: { asking_price: o.seller_asking_price, currency: o.currency || 'AUD' },
+    user_overrides: { asking_price: o.seller_asking_price, currency: o.currency || 'AUD', ...(shipping !== null ? { shipping_cost: shipping } : {}) },
     seller_update: sellerUpdate,
     prior_analysis_summary: a ? JSON.stringify({ identified_name: a.identified_name, recommendation: a.recommendation, resale_mid: a.resale_mid, max_buy: a.max_buy, risks: a.risks, questions_to_ask: a.questions_to_ask }) : '',
     bankroll: Number(portfolio.available_cash || 0), risk_profile: profile.risk_profile || 'conservative',
@@ -277,7 +292,7 @@ async function recheck(o, a, reply, files) {
     expected_profit: x.expected_profit ?? null, expected_roi_percent: x.expected_roi_percent ?? null, quick_sale_profit: x.quick_sale_profit ?? null, next_action: x.next_action || null,
     questions_to_ask: x.questions_to_ask || [], inspection_checks: x.inspection_checks || [], risks: x.risks || {}, assumptions: x.assumptions || [], evidence_summary: x.evidence_summary || '',
     raw_model_output: data, action_summary: x.action_summary || '', action_steps: x.action_steps || [], action_cautions: x.action_cautions || [], seller_message: x.seller_message || '',
-    photo_findings: x.photo_findings || [], photo_count: images.length, user_overrides: { asking_price: o.seller_asking_price, seller_reply: reply || '(screenshot)' },
+    photo_findings: x.photo_findings || [], photo_count: images.length, user_overrides: { asking_price: o.seller_asking_price, shipping_cost: shipping, seller_reply: reply || '(screenshot)' },
     seller_confidence: x.seller_confidence ?? null, seller_confidence_label: x.seller_confidence_label ?? null, seller_confidence_reason: x.seller_confidence_reason ?? null,
     seller_signals: x.seller_signals || {}, overall_confidence: x.overall_confidence ?? null
   }
@@ -303,6 +318,7 @@ function defaultStep(o, a) {
   if (['bought', 'purchased'].includes(o.status)) return 'buy'
   const deal = dealLog(o)
   if (n(deal.agreed_price) !== null) return 'buy'
+  if (isRetail(o)) return 'buy'
   if (o.status === 'verify' || a?.recommendation === 'verify_first') return 'verify'
   if (o.status === 'negotiating' || a?.recommendation === 'negotiate') return 'negotiate'
   if (['buy', 'strong_buy'].includes(a?.recommendation)) {
@@ -333,7 +349,7 @@ async function openDeal(oppId) {
       <div class="dp-metrics">
         <div class="dp-metric"><small>Ask</small><b>${money(e.ask)}</b></div>
         <div class="dp-metric"><small>Resale</small><b>${money(a.resale_mid)}</b></div>
-        <div class="dp-metric"><small>Profit at ask</small><b class="${n(a.expected_profit) > 0 ? 'pos' : 'neg'}">${money(a.expected_profit)}</b></div>
+        <div class="dp-metric"><small>Profit at ask</small><b class="${n(a.expected_profit) === null ? '' : n(a.expected_profit) > 0 ? 'pos' : 'neg'}">${money(a.expected_profit)}</b></div>
         <div class="dp-metric"><small>Max buy</small><b>${money(a.max_buy)}</b></div>
       </div>
       <div class="dp-steps" role="tablist">
@@ -366,6 +382,11 @@ function verifyStep(mount, o, a) {
   const qs = arr(a.questions_to_ask).map(q => typeof q === 'string' ? q : q?.question || q?.text || '').filter(Boolean)
   const msg = a.seller_message || (qs.length ? `Hi! Is this still available? A couple of quick questions before I come over:\n${qs.map(q => `• ${q}`).join('\n')}` : '')
   const replies = arr(dealLog(o).replies)
+  if (isRetail(o)) {
+    mount.innerHTML = `<div class="dp-card"><h3>Nothing to ask — it's a store listing</h3><p>There's no seller to message. Check the store page still shows the same price and stock, then buy it.</p><div class="dp-actions">${o.source_url ? `<a class="button secondary" href="${esc(o.source_url)}" target="_blank" rel="noopener">Open the store page ↗</a>` : ''}<button class="button primary" data-dp-goto="buy">I bought it</button></div></div>`
+    $$('[data-dp-goto]', mount).forEach(b => b.onclick = () => { stepTab[o.id] = b.dataset.dpGoto; current?.render() })
+    return
+  }
   mount.innerHTML = `
     ${qs.length || msg ? `<div class="dp-card"><h3>Ask the seller</h3>
       ${qs.length ? `<p>FlippersAI still needs:</p><ul class="dp-list">${qs.map(q => `<li>${esc(q)}</li>`).join('')}</ul>` : ''}
@@ -374,6 +395,7 @@ function verifyStep(mount, o, a) {
     <div class="dp-card" id="dpReply"><h3>Seller replied?</h3><p>Paste their reply or add a screenshot. FlippersAI re-checks the item, economics and verdict with it.</p>
       <label>Seller's reply<textarea id="dpReplyText" placeholder="Paste the seller's message here"></textarea></label>
       <label>Or screenshots of the reply / new photos<input type="file" id="dpReplyFiles" accept="image/jpeg,image/png,image/webp" multiple></label>
+      <label>Your cost to get it (shipping / travel — 0 for pickup)<input type="number" id="dpShip" min="0" step="0.01" value="${esc(n(obj(o.raw_listing).shipping_cost) ?? n(obj(obj(a.raw_model_output).analysis).acquisition_shipping_cost) ?? '')}" placeholder="0"></label>
       <div class="dp-actions"><button class="button primary" id="dpRecheck">Re-check with this reply</button></div>
       ${replies.length ? `<p class="dp-note">${replies.length} repl${replies.length === 1 ? 'y' : 'ies'} checked so far. Latest: ${esc((REC[replies[replies.length - 1].before] || ['—'])[0])} → ${esc((REC[replies[replies.length - 1].after] || ['—'])[0])}.</p>` : ''}
     </div>`
@@ -386,7 +408,8 @@ function verifyStep(mount, o, a) {
     $('#dpRecheck', mount).textContent = 'Re-checking… (about 30–60 s)'
     withBusy(card, async () => {
       const before = a.recommendation
-      const x = await recheck(o, a, text, files)
+      const shipIn = n($('#dpShip', mount).value)
+      const x = await recheck(o, a, text, files, shipIn)
       delete stepTab[o.id]
       await refreshAll()
       const after = x.recommendation
@@ -404,6 +427,14 @@ function negotiateStep(mount, o, a) {
     return
   }
   const pr = p => { const x = env.profitAt(p), r = env.roiAt(p); return x === null ? '' : `profit ${money(x)}${r !== null ? ` · ${Math.round(r)}% ROI` : ''}` }
+  if (isRetail(o)) {
+    const ok = env.ask !== null && env.ask <= env.max
+    mount.innerHTML = `<div class="dp-card"><h3>Retail price — no haggling</h3>
+      <div class="dp-verdict ${ok ? 'accept' : 'hold'}"><strong>${ok ? `Buy while it's ${money(env.ask)} or less` : `Only worth it at ${money(env.max)} or less`}</strong>Your hard max is ${money(env.max)} (${pr(env.max)}). ${ok ? 'Check the store price is still the same, then buy.' : 'Wait for a lower price or a coupon.'}</div>
+      <div class="dp-actions">${o.source_url ? `<a class="button secondary" href="${esc(o.source_url)}" target="_blank" rel="noopener">Open the store page ↗</a>` : ''}<button class="button primary" data-dp-goto="buy">I bought it</button></div></div>`
+    $$('[data-dp-goto]', mount).forEach(b => b.onclick = () => { stepTab[o.id] = b.dataset.dpGoto; current?.render() })
+    return
+  }
   const counters = arr(deal.counters)
   const lastOffer = counters.length ? n(counters[counters.length - 1].reply_price) ?? env.opening : env.opening
   const opener = env.askUnderOpening
@@ -428,8 +459,8 @@ function negotiateStep(mount, o, a) {
   $('#dpCopyOffer', mount)?.addEventListener('click', () => copy($('#dpOfferMsg', mount).value, 'Offer copied — paste it to the seller.'))
   $$('[data-dp-goto]', mount).forEach(b => b.onclick = () => { stepTab[o.id] = b.dataset.dpGoto; current?.render() })
   $('#dpUnagree', mount)?.addEventListener('click', () => withBusy(mount, async () => { await saveDeal(o, { agreed_price: null, agreed_at: null }); await refreshAll() }))
-  const agree = price => withBusy(mount, async () => {
-    await saveDeal(o, { agreed_price: Number(price), agreed_at: new Date().toISOString() }, { status: 'negotiating' })
+  const agree = (price, extra = {}) => withBusy(mount, async () => {
+    await saveDeal(o, { ...extra, agreed_price: Number(price), agreed_at: new Date().toISOString() }, { status: 'negotiating' })
     stepTab[o.id] = 'buy'
     await refreshAll()
     toast(`Agreed at ${money(price)}. Record the purchase once you have it.`)
@@ -440,7 +471,7 @@ function negotiateStep(mount, o, a) {
     if (price === null || price <= 0) { toast('Enter the price the seller came back with.'); return }
     const r = classifyCounter(env, price, lastOffer)
     const text = counterMessage(r, title)
-    const why = r.action === 'accept' ? `${money(price)} is within your good-buy range (${pr(price)}).`
+    const why = r.action === 'accept' ? `${money(price)} is ${price <= env.target ? 'at or under your good-buy price' : 'within $5 of your good-buy price'} (${pr(price)}).`
       : r.action === 'counter' ? `${money(price)} still works (${pr(price)}), but you can likely do better. Counter at ${money(r.price)}.`
       : r.action === 'hold' ? `${money(price)} is above your hard max of ${money(env.max)}. Offer your max once — if they won't take it, walk.`
       : `${money(price)} is well above your hard max of ${money(env.max)}${env.profitAt(price) !== null ? ` (profit would be ${money(env.profitAt(price))})` : ''}. Walk away.`
@@ -454,10 +485,7 @@ function negotiateStep(mount, o, a) {
         await refreshAll()
       }
     }
-    $('#dpAgree', mount)?.addEventListener('click', async () => {
-      await saveDeal(o, { counters: [...counters, { at: new Date().toISOString(), price, action: 'accept', reply_price: price }] }).catch(() => {})
-      agree(price)
-    })
+    $('#dpAgree', mount)?.addEventListener('click', () => agree(price, { counters: [...counters, { at: new Date().toISOString(), price, action: 'accept', reply_price: price }] }))
   })
 }
 
@@ -522,10 +550,11 @@ let stockFilter = 'all'
 
 function saleFor(i) { return (state().sales || []).find(s => s.inventory_item_id === i.id) || null }
 function listingFor(i) { return (state().saleListings || []).find(l => l.inventory_item_id === i.id && l.status === 'active') || (state().saleListings || []).find(l => l.inventory_item_id === i.id) || null }
+// The ledger treats payout_amount as the NET amount received (after platform fees).
 function actualProfit(i, s) {
   if (!s) return null
-  const payout = n(s.payout_amount) ?? n(s.sale_price) ?? 0
-  return payout - (n(s.selling_fees) || 0) - (n(s.shipping_cost) || 0) - (n(s.other_costs) || 0) - costBasis(i)
+  const net = n(s.payout_amount) ?? ((n(s.sale_price) || 0) - (n(s.selling_fees) || 0))
+  return net - (n(s.shipping_cost) || 0) - (n(s.other_costs) || 0) - costBasis(i)
 }
 
 function stockView(root, api) {
@@ -605,7 +634,7 @@ function openStock(itemId, focus) {
     else if (next === 'list') listStep(mount, i)
     else if (next === 'sale') saleStep(mount, i, l)
     else if (next === 'funds') fundsStep(mount, i, s)
-    else mount.innerHTML = i.status === 'sold' ? `<div class="dp-card"><div class="dp-verdict ${ap >= 0 ? 'accept' : 'walk'}"><strong>Flip complete · ${money(ap)} profit</strong>Paid out ${money(s?.payout_amount ?? s?.sale_price)} after fees and costs.</div></div>` : ''
+    else mount.innerHTML = i.status === 'sold' ? `<div class="dp-card"><div class="dp-verdict ${ap >= 0 ? 'accept' : 'walk'}"><strong>Flip complete · ${money(ap)} profit</strong>Sold for ${money(s?.sale_price)}, ${money(s?.payout_amount)} received after fees${n(s?.shipping_cost) ? `, ${money(s.shipping_cost)} postage` : ''}.</div></div>` : ''
     editStep($('#stEdit', body), i)
   }
   current = { kind: 'stock', id: itemId, render: draw }
@@ -643,7 +672,7 @@ function planMarkup(pl) {
 }
 
 function planStep(mount, i) {
-  mount.innerHTML = `<div class="dp-card" id="stPlan"><h3>Sale plan</h3><p>Building your price, listing copy and prep checklist…</p></div>`
+  mount.innerHTML = `<div class="dp-card" id="stPlan"><h3>Sale plan</h3><p>Building your price, listing copy and prep checklist… (about 30–60 s, only the first time)</p></div>`
   const card = $('#stPlan', mount)
   salePlan(i).then(pl => {
     card.innerHTML = `<h3>Sale plan</h3>${planMarkup(pl)}<div class="dp-actions"><button class="button primary" id="stReady">It's ready to list</button></div>`
@@ -710,7 +739,7 @@ function saleStep(mount, i, l) {
 
 function fundsStep(mount, i, s) {
   mount.innerHTML = `<div class="dp-card" id="stFunds"><h3>Payment received?</h3><p>Only confirm once the money is actually in your account.</p>
-    <label>Amount received<input type="number" id="stPayout" min="0" step="0.01" value="${esc(s?.sale_price ?? '')}"></label>
+    <label>Amount that landed in your account (after platform fees)<input type="number" id="stPayout" min="0" step="0.01" value="${esc(s ? Math.round(((n(s.sale_price) || 0) - (n(s.selling_fees) || 0)) * 100) / 100 : '')}"></label>
     <div class="dp-actions"><button class="button primary" id="stPaid">Payment received</button></div></div>`
   const card = $('#stFunds', mount)
   $('#stPaid', card).onclick = () => withBusy(card, async () => {
@@ -756,7 +785,7 @@ function editStep(mount, i) {
 
 // ---------------------------------------------------------------- wiring
 styles()
-window.flippersDeal = { open: openDeal, openStock, uploadImages, envelope, classifyCounter }
+window.flippersDeal = { open: openDeal, openStock, uploadImages, envelope, classifyCounter, isRetail }
 window.flippersViews = { ...(window.flippersViews || {}), inventory: stockView }
 const register = () => { window.flippersViews = { ...(window.flippersViews || {}), inventory: stockView }; window.dispatchEvent(new CustomEvent('flippers:views-ready')) }
 if (window.flippersViews?.today) register()

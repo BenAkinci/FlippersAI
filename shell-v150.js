@@ -139,6 +139,7 @@ function nextAction(o, a) {
   if (!a) return { label: 'Analyse', kind: 'analyse' }
   const agreed = n(o.raw_listing?.deal?.agreed_price)
   if (agreed !== null && hasPanel) return { label: 'Record purchase', kind: 'deal' }
+  if (hasPanel && window.flippersDeal.isRetail?.(o) && a.recommendation !== 'skip') return { label: 'Buy it', kind: 'deal' }
   if (stage === 'verify' || a.recommendation === 'verify_first') {
     if (hasPanel) return { label: 'Verify with seller', kind: 'deal' }
     return a.seller_message ? { label: 'Copy seller questions', kind: 'copy-seller' } : { label: 'Re-analyse', kind: 'analyse' }
@@ -358,7 +359,7 @@ async function saveAnalysisToPipeline(button) {
       listing_text: String(f.get('description') || '').trim() || null,
       seller_asking_price: n(f.get('price')), currency: String(f.get('currency') || 'AUD') || 'AUD',
       listing_location: String(f.get('location') || '').trim() || null, seller_name: String(f.get('seller') || '').trim() || null,
-      raw_listing: { condition: String(f.get('condition') || '') || null, size: String(f.get('size') || '') || null, colour: String(f.get('colour') || '') || null, saved_from: 'analyse' },
+      raw_listing: { condition: String(f.get('condition') || '') || null, size: String(f.get('size') || '') || null, colour: String(f.get('colour') || '') || null, brand: String(f.get('brand') || '') || null, shipping_cost: n(f.get('shipping_cost')) ?? n(x.acquisition_shipping_cost), saved_from: 'analyse' },
       status: STATUS_FOR_REC[x.recommendation] || 'ready', is_saved: true, saved_at: now, updated_at: now
     }
     let oppId = null
@@ -384,7 +385,7 @@ async function saveAnalysisToPipeline(button) {
       expected_selling_costs: x.expected_selling_costs ?? null, expected_profit: x.expected_profit ?? null, expected_roi_percent: x.expected_roi_percent ?? null, quick_sale_profit: x.quick_sale_profit ?? null,
       next_action: x.next_action || null, questions_to_ask: x.questions_to_ask || [], inspection_checks: x.inspection_checks || [], risks: x.risks || {}, assumptions: x.assumptions || [],
       evidence_summary: x.evidence_summary || '', raw_model_output: payload, action_summary: x.action_summary || '', action_steps: x.action_steps || [], action_cautions: x.action_cautions || [],
-      seller_message: x.seller_message || '', photo_findings: x.photo_findings || [], user_overrides: { asking_price: opp.seller_asking_price },
+      seller_message: x.seller_message || '', photo_findings: x.photo_findings || [], user_overrides: { asking_price: opp.seller_asking_price, shipping_cost: opp.raw_listing.shipping_cost },
       seller_confidence: x.seller_confidence ?? null, seller_confidence_label: x.seller_confidence_label ?? null, seller_confidence_reason: x.seller_confidence_reason ?? null,
       seller_signals: x.seller_signals || {}, overall_confidence: x.overall_confidence ?? null
     })
