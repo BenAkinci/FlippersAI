@@ -1,0 +1,1 @@
+Build marker for FlippersAI extension v0.81.1 Scout startup watchdog validation.
