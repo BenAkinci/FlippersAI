@@ -27,6 +27,7 @@ function styles() {
   .lp-side .auth-card{max-width:none!important;margin:0!important;box-shadow:0 12px 40px rgba(15,20,25,.08)}
   .lp-side .auth-copy{display:none}
   .lp-side .brand-large{display:none}
+  .lp-top .brand-large{display:flex!important}
   .lp-side-head{font-size:18px;font-weight:700;margin:0 0 14px}
   .lp-foot{max-width:1120px;width:calc(100% - 32px);margin:48px auto 0;padding:20px 0 28px;border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between;color:var(--muted);font-size:13px}
   .lp-foot nav{display:flex;gap:16px}.lp-foot a{color:var(--muted)}
@@ -124,7 +125,7 @@ function enhanceAuth() {
   const lp = document.createElement('div')
   lp.className = 'lp'
   lp.innerHTML = `
-    <div class="lp-top"><div class="brand brand-large"><span>FlippersAI</span></div></div>
+    <div class="lp-top"></div>
     <div class="lp-main">
       <section class="lp-hero">
         <h1>Know if it's worth buying — before you buy it.</h1>
@@ -142,6 +143,8 @@ function enhanceAuth() {
       </section>
       <aside class="lp-side"><div class="lp-side-head">Sign in or create an account</div></aside>
     </div>${footer()}`
+  const brand = $('.brand-large', shell)
+  if (brand) $('.lp-top', lp).appendChild(brand.cloneNode(true))
   shell.replaceWith(lp)
   $('.lp-side', lp).appendChild(shell)
 }
