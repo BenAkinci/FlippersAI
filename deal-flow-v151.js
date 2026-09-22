@@ -595,9 +595,9 @@ function buyStep(mount, o, a) {
       </div>
       <div id="dpBuyWarn">${over ? `<div class="dp-verdict hold"><strong>Above your hard max</strong>${money(price)} is more than ${money(env.max)}. You'll likely miss your target profit.</div>` : ''}</div>
       <div class="dp-actions"><button class="button primary" id="dpRecord">Record purchase</button></div>
-      <p class="dp-note">Before paying: check it matches the listing and works${arr(a.inspection_checks).length ? ' — see the checklist below' : ''}.</p>
+      ${obj(deal.inspection).result === 'pass' ? '' : `<p class="dp-note">Before paying: check it matches the listing and works${arr(a.inspection_checks).length ? ' — see the checklist below' : ''}.</p>`}
     </div>
-    ${arr(a.inspection_checks).length ? `<div class="dp-card"><h3>Check before you pay</h3><ul class="dp-list">${arr(a.inspection_checks).map(c => `<li>${esc(typeof c === 'string' ? c : c?.check || c?.text || '')}</li>`).join('')}</ul></div>` : ''}`
+    ${arr(a.inspection_checks).length && obj(deal.inspection).result !== 'pass' ? `<div class="dp-card"><h3>Check before you pay</h3><ul class="dp-list">${arr(a.inspection_checks).map(c => `<li>${esc(typeof c === 'string' ? c : c?.check || c?.text || '')}</li>`).join('')}</ul></div>` : ''}`
   $('#dpPaid', mount).oninput = e => {
     const p = n(e.target.value)
     $('#dpBuyWarn', mount).innerHTML = env && p !== null && p > env.max ? `<div class="dp-verdict hold"><strong>Above your hard max</strong>${money(p)} is more than ${money(env.max)}. You'll likely miss your target profit.</div>` : ''
