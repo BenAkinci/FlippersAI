@@ -88,3 +88,13 @@
   .desktop-nav .desktop-nav-item{padding:9px 9px!important;gap:0!important}
   .desktop-nav .desktop-nav-item>svg,.desktop-nav .desktop-nav-item .ico{display:none!important}
 }
+
+/* v0.150.2: the nav is now 5 items (Today · Find · Analyse · Pipeline · Stock).
+   On phone/tablet spread them evenly across the row instead of the old
+   fixed-width scrolling strip, and keep alerts + avatar pinned right once the
+   desktop nav (which carried margin-left:auto) is hidden. */
+@media (max-width:860px){
+  .topbar-inner .notification-button{margin-left:auto}
+  .mobile-nav{overflow-x:visible;scroll-snap-type:none}
+  .mobile-nav-item{flex:1 1 0!important;min-width:0!important}
+}

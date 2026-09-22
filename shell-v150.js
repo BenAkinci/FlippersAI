@@ -84,7 +84,7 @@ function styles() {
   .find-legacy .page-head{padding-top:0!important;border-bottom:0!important;margin-bottom:8px!important}
   .radar-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
   @media (max-width:860px){.sv-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.sv-head h1{font-size:26px}}
-  @media (max-width:560px){.sv-row{grid-template-columns:1fr}.sv-row-actions{justify-content:flex-start;flex-wrap:wrap}.sv-row-title{white-space:normal}}
+  @media (max-width:560px){.sv-tabs{gap:0}.sv-tab{flex:1 1 0;min-width:0;padding:10px 4px;font-size:13px;line-height:1.25;text-align:center;white-space:normal}.sv-row{grid-template-columns:1fr}.sv-row-actions{justify-content:flex-start;flex-wrap:wrap}.sv-row-title{white-space:normal}}
   `
   document.head.appendChild(s)
 }
@@ -154,7 +154,9 @@ function todayView(root, api) {
   const { state } = api
   const meta = state.session?.user?.user_metadata || {}
   // Only greet by name when a real name is set — never by email prefix.
-  const rawName = state.bundle?.profile?.display_name || meta.name || meta.full_name || ''
+  const emailPrefix = String(state.session?.user?.email || '').split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
+  const notEmail = v => v && String(v).toLowerCase().replace(/[^a-z0-9]/g, '') !== emailPrefix
+  const rawName = [state.bundle?.profile?.display_name, meta.name, meta.full_name].find(notEmail) || ''
   const name = rawName ? rawName.split(/[._\s-]/)[0].replace(/^./, c => c.toUpperCase()) : ''
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
@@ -378,7 +380,7 @@ async function saveAnalysisToPipeline(button) {
     button.disabled = false
     button.onclick = () => go('pipeline')
     toast('Saved to your pipeline.')
-    window.flippersApp?.refresh?.()
+    window.flippersApp?.refresh?.({ render: false })
   } catch (e) {
     button.disabled = false
     button.textContent = 'Save to Pipeline'

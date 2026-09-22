@@ -185,9 +185,11 @@ async function ensureProfile() {
   if (!data) await supabase.from('profiles').insert({ id: uid() })
 }
 
-async function refresh() {
+async function refresh(opts = {}) {
   if (!state.session) return renderAuth()
-  busy(true)
+  // v0.150.2: { render:false } reloads data without re-rendering the current page (e.g. after Save to Pipeline).
+  const quiet = opts && opts.render === false
+  if (!quiet) busy(true)
   try {
     await ensureProfile()
     const { data: bundle, error: workflowError } = await supabase.functions.invoke('workflow-state', { method:'GET' })
@@ -216,11 +218,12 @@ async function refresh() {
         seen.add(a.opportunity_id)
       }
     }
-    render()
+    if (!quiet) render()
   } catch (e) {
+    if (quiet) { console.warn('[FlippersAI] background refresh failed', e); return }
     app.innerHTML = `<div class="fatal"><div class="card"><h2>Could not load FlippersAI</h2><p>${esc(e.message || e)}</p><button class="button primary" onclick="location.reload()">Retry</button></div></div>`
   } finally {
-    busy(false)
+    if (!quiet) busy(false)
   }
 }
 
