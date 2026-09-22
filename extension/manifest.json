@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "FlippersAI — Reseller Workspace",
-  "version": "0.91.0",
-  "description": "FlippersAI v0.91 with single-owner Scan UI state and stable marketplace ratings.",
+  "name": "FlippersAI \u2014 Reseller Workspace",
+  "version": "0.95.0",
+  "description": "FlippersAI v0.152 \u2014 marketplace Scout, ratings and Auto scan of saved searches.",
   "minimum_chrome_version": "114",
   "permissions": [
     "activeTab",
@@ -10,7 +10,9 @@
     "scripting",
     "storage",
     "tabs",
-    "clipboardWrite"
+    "clipboardWrite",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "https://msmpigerejpxepkylkxz.supabase.co/*",

@@ -7,7 +7,7 @@ const work=read('workspace.html')
 const ctrl=read('scout-controller-v090.js')
 const tools=read('workspace-tools-v086.js')
 const overlay=read('scout-rating-overlay.js')
-expect(manifest.version==='0.91.0','manifest must package v0.91.0')
+expect(/^0\.9[1-9]\./.test(manifest.version),'manifest must package v0.91.0 or newer')
 for(const html of [side,work]){
   for(const old of ['scout-smart-overview-v066.js','scout-card-details.js','scout-loader-state-v083.js','scout-actions-v087.js','scout-enrichment-state-v089.js'])expect(!html.includes(old),`${old} must not compete with the v0.91 Scan renderer`)
   expect(html.includes('scout-controller-v090.js'),'single Scout controller must remain loaded')
