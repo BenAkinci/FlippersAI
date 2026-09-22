@@ -68,7 +68,9 @@ function toast(message) {
 function busy(on) {
   state.busy = on
   document.body.classList.toggle('is-busy', on)
-  $$('button').forEach(b => { b.disabled = on })
+  // v0.150: never disable navigation. nav-freeze keeps a saved copy of the top bar, and
+  // disabling its buttons here left the whole nav dead after any data refresh.
+  $$('button').filter(b => !b.closest('.topbar, .mobile-nav')).forEach(b => { b.disabled = on })
 }
 
 // v0.150: sections are Today, Find, Analyse, Pipeline, Stock. Legacy view names map

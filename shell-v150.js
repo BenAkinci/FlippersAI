@@ -12,6 +12,11 @@ const n = v => v === null || v === undefined || v === '' || !Number.isFinite(Num
 const money = v => n(v) === null ? '—' : new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(n(v))
 const ago = iso => { if (!iso) return ''; const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); if (m < 60) return `${m}m ago`; const h = Math.round(m / 60); if (h < 48) return `${h}h ago`; return `${Math.round(h / 24)}d ago` }
 const PREFILL_KEY = 'flippers:analyse-prefill'
+// Older scraped records put page text into listing_location; keep only a real place name.
+const cleanLocation = v => {
+  const t = String(v || '').split(/\b(?:is approximate|Seller information|Seller details|Message|Details|Condition|Listed|Joined)\b/i)[0].replace(/[·|,\s]+$/, '').trim()
+  return t.length > 0 && t.length <= 40 ? t : ''
+}
 
 function toast(text) {
   $('.toast')?.remove()
@@ -70,12 +75,16 @@ function styles() {
   .sv-filter.active{background:var(--ink);color:#fff;border-color:var(--ink)}
   .sv-filter span{opacity:.6;margin-left:4px}
   .sv-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line);background:var(--soft);border-radius:var(--radius-sm);padding:12px 14px;font-size:14px}
-  .sv-select{font:inherit;font-size:13px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+  .sv-select{font:inherit;font-size:13px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;background:var(--bg);width:auto!important;max-width:130px;min-height:0!important;flex:0 0 auto}
+  .sv-row-actions{flex-wrap:nowrap}
   .sv-link{border:0;background:none;padding:0;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;text-decoration:underline}
   .find-tabs-wrap{margin:0 0 20px}
+  /* Inside Find the section header replaces legacy page titles/eyebrows and marketing blurbs. */
+  .find-legacy .page-head .eyebrow,.find-legacy .page-head h1,.find-legacy .intel-intro{display:none!important}
+  .find-legacy .page-head{padding-top:0!important;border-bottom:0!important;margin-bottom:8px!important}
   .radar-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
   @media (max-width:860px){.sv-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.sv-head h1{font-size:26px}}
-  @media (max-width:560px){.sv-row{grid-template-columns:1fr}.sv-row-actions{justify-content:flex-start}.sv-row-title{white-space:normal}}
+  @media (max-width:560px){.sv-row{grid-template-columns:1fr}.sv-row-actions{justify-content:flex-start;flex-wrap:wrap}.sv-row-title{white-space:normal}}
   `
   document.head.appendChild(s)
 }
@@ -101,7 +110,7 @@ function prefillAnalyse(o, label = 'your pipeline') {
   const payload = {
     title: o.listing_title || '', price: o.seller_asking_price, currency: (o.currency || 'AUD').toUpperCase(),
     url: o.source_url || '', platform: ['facebook', 'depop', 'ebay', 'gumtree', 'vinted'].includes(plat) ? plat : '',
-    location: o.listing_location || '', seller: o.seller_name || '', condition: raw.condition || '',
+    location: cleanLocation(o.listing_location), seller: o.seller_name || '', condition: raw.condition || '',
     description: o.listing_text || '', source_label: label
   }
   try { sessionStorage.setItem(PREFILL_KEY, JSON.stringify(payload)) } catch {}
@@ -144,7 +153,8 @@ async function runAction(kind, o, a) {
 function todayView(root, api) {
   const { state } = api
   const meta = state.session?.user?.user_metadata || {}
-  const rawName = state.bundle?.profile?.display_name || meta.name || meta.full_name || state.session?.user?.email?.split('@')[0] || ''
+  // Only greet by name when a real name is set — never by email prefix.
+  const rawName = state.bundle?.profile?.display_name || meta.name || meta.full_name || ''
   const name = rawName ? rawName.split(/[._\s-]/)[0].replace(/^./, c => c.toUpperCase()) : ''
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
@@ -222,7 +232,7 @@ function openFindTab() {
   setTimeout(ensureFindChrome, 60)
 }
 function ensureFindChrome() {
-  if (window.flippersApp?.view !== 'find' || findTab === 'radar') return
+  if (window.flippersApp?.view !== 'find' || findTab === 'radar') { $('.content.find-legacy')?.classList.remove('find-legacy'); return }
   const content = $('.content')
   if (!content || $('#findTabs', content)) return
   const wrap = document.createElement('div')
@@ -230,8 +240,7 @@ function ensureFindChrome() {
   wrap.innerHTML = `<section class="sv-head" style="margin-bottom:12px"><div><h1>Find</h1></div></section>${findTabsMarkup()}`
   content.prepend(wrap)
   bindFindTabs(wrap)
-  // Legacy page heads duplicate the section title; keep their actions, drop their big heading.
-  content.querySelectorAll('.page-head h1').forEach(h => { if (!wrap.contains(h)) h.style.display = 'none' })
+  content.classList.add('find-legacy')
 }
 
 // ---------------------------------------------------------------- PIPELINE
@@ -245,14 +254,15 @@ async function pipelineView(root, api) {
   const counts = Object.fromEntries(STAGES.map(([k]) => [k, live.filter(o => stageOf(o) === k).length]))
   // Stale = never analysed, still at first look, untouched for 3+ days (the old 18-step imports).
   const staleCut = Date.now() - 3 * 86400000
-  const stale = live.filter(o => stageOf(o) === 'watching' && !latestAnalysis(state, o.id) && Date.parse(o.updated_at || o.created_at) < staleCut)
+  const stale = live.filter(o => ['watching', 'analysed'].includes(stageOf(o)) && !latestAnalysis(state, o.id) && Date.parse(o.updated_at || o.created_at) < staleCut)
   const list = showArchived ? archived : live.filter(o => pipeFilter === 'all' || stageOf(o) === pipeFilter)
 
   const row = (o, i) => {
     const a = latestAnalysis(state, o.id)
-    const [rl, rc] = a ? (REC[a.recommendation] || ['Analysed', '']) : ['Not analysed', '']
+    const scoutRec = o.raw_listing?.scout_recommendation
+    const [rl, rc] = a ? (REC[a.recommendation] || ['Analysed', '']) : scoutRec ? ['Scout-rated', ''] : ['Not analysed', '']
     const act = nextAction(o, a)
-    const sub = [o.source_platform && o.source_platform !== 'other' ? String(o.source_platform).replace(/_/g, ' ') : '', o.listing_location, ago(o.updated_at)].filter(Boolean).join(' · ')
+    const sub = [o.source_platform && o.source_platform !== 'other' ? String(o.source_platform).replace(/_/g, ' ') : '', cleanLocation(o.listing_location), ago(o.updated_at)].filter(Boolean).join(' · ')
     return `<div class="sv-row" data-pipe="${i}"><div class="sv-row-main"><div class="sv-row-title">${esc(o.listing_title || a?.identified_name || 'Untitled item')}</div>
       <div class="sv-row-sub"><span class="sv-chip ${rc}">${esc(rl)}</span>${n(o.seller_asking_price) !== null ? `<span>Ask ${money(o.seller_asking_price)}</span>` : ''}${a && n(a.expected_profit) !== null ? `<span>Profit ${money(a.expected_profit)}</span>` : ''}${a && n(a.max_buy) !== null ? `<span>Max buy ${money(a.max_buy)}</span>` : ''}${sub ? `<span>${esc(sub)}</span>` : ''}</div></div>
       <div class="sv-row-actions">
@@ -266,7 +276,7 @@ async function pipelineView(root, api) {
   root.innerHTML = `
     <section class="sv-head"><div><h1>Pipeline</h1><p>Everything you're considering, from first look to purchase. Each item shows its next step.</p></div>
       <button class="button primary" data-shell-go="analyse">Analyse a listing</button></section>
-    ${stale.length && !showArchived ? `<div class="sv-banner"><span><strong>${stale.length}</strong> old item${stale.length === 1 ? ' has' : 's have'} never been analysed and haven't been touched in 3+ days.</span><button class="button secondary" id="archiveStale">Archive them</button></div>` : ''}
+    ${stale.length && !showArchived ? `<div class="sv-banner"><span><strong>${stale.length}</strong> older item${stale.length === 1 ? ' has' : 's have'} no full analysis and ${stale.length === 1 ? "hasn't" : "haven't"} been touched in 3+ days.</span><button class="button secondary" id="archiveStale">Archive them</button></div>` : ''}
     <div class="sv-filters">
       ${showArchived ? '' : [['all', 'All', live.length], ...STAGES.map(([k, l]) => [k, l, counts[k]])].map(([k, l, c]) => `<button class="sv-filter ${pipeFilter === k ? 'active' : ''}" data-pipe-filter="${k}">${l}<span>${c}</span></button>`).join('')}
       <button class="sv-filter ${showArchived ? 'active' : ''}" id="toggleArchived">${showArchived ? '← Back to pipeline' : `Archived<span>${archived.length}</span>`}</button>
@@ -391,6 +401,11 @@ function ensureSaveButton() {
 }
 
 // ---------------------------------------------------------------- wiring
+// Defensive: a preserved top bar from an older session state may carry disabled buttons.
+function reenableNav() {
+  $$('.topbar button:disabled, .mobile-nav button:disabled').forEach(b => { b.disabled = false })
+}
+
 function syncNavActive() {
   const view = window.flippersApp?.view
   if (!view) return
@@ -415,7 +430,7 @@ let t
 const appEl = document.getElementById('app')
 if (appEl) new MutationObserver(() => {
   clearTimeout(t)
-  t = setTimeout(() => { syncNavActive(); ensureFindChrome(); ensureSaveButton() }, 40)
+  t = setTimeout(() => { reenableNav(); syncNavActive(); ensureFindChrome(); ensureSaveButton() }, 40)
 }).observe(appEl, { childList: true, subtree: true })
 
 styles()
