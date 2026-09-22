@@ -298,13 +298,14 @@ function externalView(name) {
   if (!view) { $('#shellView').innerHTML = '<div class="shell-loading">Loading…</div>'; return }
   view($('#shellView'), { state, route, refresh, supabase })
 }
-window.addEventListener('flippers:views-ready', () => { if (['today', 'find', 'pipeline'].includes(state.view)) render() })
-window.flippersApp = { state, route, refresh, get view() { return state.view } }
+const externalViews = () => ['today', 'find', 'pipeline', ...(window.flippersViews?.inventory ? ['inventory'] : [])]
+window.addEventListener('flippers:views-ready', () => { if (externalViews().includes(state.view)) render() })
+window.flippersApp = { state, route, refresh, render, get view() { return state.view } }
 
 function render() {
   if (!state.bundle) return
   if (state.view === 'today' && !state.bundle.onboarding?.completed) return onboardingPage()
-  if (['today', 'find', 'pipeline'].includes(state.view)) return externalView(state.view)
+  if (externalViews().includes(state.view)) return externalView(state.view)
   if (state.view === 'home') return homePage()
   if (state.view === 'analyse') return analysePage()
   if (state.view === 'deals') return dealsPage()

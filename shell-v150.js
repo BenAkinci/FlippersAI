@@ -77,6 +77,8 @@ function styles() {
   .sv-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line);background:var(--soft);border-radius:var(--radius-sm);padding:12px 14px;font-size:14px}
   .sv-select{font:inherit;font-size:13px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;background:var(--bg);width:auto!important;max-width:130px;min-height:0!important;flex:0 0 auto}
   .sv-row-actions{flex-wrap:nowrap}
+  .sv-title-btn{border:0;background:none;padding:0;font:inherit;font-weight:650;color:var(--ink);cursor:pointer;text-align:left;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:inherit}
+  .sv-title-btn:hover{text-decoration:underline}
   .sv-link{border:0;background:none;padding:0;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;text-decoration:underline}
   .find-tabs-wrap{margin:0 0 20px}
   /* Inside Find the section header replaces legacy page titles/eyebrows and marketing blurbs. */
@@ -129,20 +131,29 @@ function offerMessage(o, a) {
 }
 
 // Next action for a pipeline item: always something the app can actually do now.
+// v0.151: Verify / Negotiate / Buy open the deal panel (deal-flow-v151.js).
 function nextAction(o, a) {
   const stage = stageOf(o)
+  const hasPanel = !!window.flippersDeal
+  if (stage === 'bought') return { label: 'View in Stock', kind: 'stock' }
   if (!a) return { label: 'Analyse', kind: 'analyse' }
+  const agreed = n(o.raw_listing?.deal?.agreed_price)
+  if (agreed !== null && hasPanel) return { label: 'Record purchase', kind: 'deal' }
   if (stage === 'verify' || a.recommendation === 'verify_first') {
+    if (hasPanel) return { label: 'Verify with seller', kind: 'deal' }
     return a.seller_message ? { label: 'Copy seller questions', kind: 'copy-seller' } : { label: 'Re-analyse', kind: 'analyse' }
   }
   if (stage === 'negotiating' || a.recommendation === 'negotiate') {
+    if (hasPanel && n(a.max_buy) !== null) return { label: 'Negotiate', kind: 'deal' }
     return offerMessage(o, a) ? { label: `Copy offer (${money(a.recommended_offer)})`, kind: 'copy-offer' } : { label: 'Re-analyse', kind: 'analyse' }
   }
-  if (['buy', 'strong_buy'].includes(a.recommendation)) return { label: 'Open listing', kind: 'open' }
+  if (['buy', 'strong_buy'].includes(a.recommendation)) return hasPanel ? { label: 'Buy it', kind: 'deal' } : { label: 'Open listing', kind: 'open' }
   return { label: 'Re-analyse', kind: 'analyse' }
 }
 
 async function runAction(kind, o, a) {
+  if (kind === 'deal') return window.flippersDeal?.open(o.id)
+  if (kind === 'stock') return go('inventory')
   if (kind === 'analyse') return prefillAnalyse(o)
   if (kind === 'open') { if (o.source_url) window.open(o.source_url, '_blank', 'noopener'); return }
   if (kind === 'copy-seller') return copy(a.seller_message, 'Seller questions copied — paste them into your chat with the seller.')
@@ -182,7 +193,7 @@ function todayView(root, api) {
   })
   const stockRows = stock.slice(0, 3).map(i => `<div class="sv-row"><div class="sv-row-main"><div class="sv-row-title">${esc(i.title || 'Stock item')}</div>
       <div class="sv-row-sub"><span class="sv-chip">${esc(String(i.status).replace(/_/g, ' '))}</span><span>Cost ${money(i.purchase_price)}</span></div></div>
-      <div class="sv-row-actions"><button class="button secondary" data-shell-go="inventory">Plan the sale</button></div></div>`)
+      <div class="sv-row-actions"><button class="button secondary" data-stock-open="${esc(i.id)}">Plan the sale</button></div></div>`)
 
   root.innerHTML = `
     <section class="sv-head"><div><span class="eyebrow">${esc(greeting)}${name ? `, ${esc(name)}` : ''}</span><h1>Today</h1><p>Your best opportunities and what needs doing next.</p></div></section>
@@ -200,6 +211,7 @@ function todayView(root, api) {
       </div>
     </section>`
   $$('[data-today-act]', root).forEach(b => b.onclick = () => { const x = actions[Number(b.dataset.todayAct)]; runAction(x.act.kind, x.o, x.a) })
+  $$('[data-stock-open]', root).forEach(b => b.onclick = () => window.flippersDeal ? window.flippersDeal.openStock(b.dataset.stockOpen) : go('inventory'))
   mountRadar($('#todayRadar', root), true)
 }
 
@@ -265,7 +277,7 @@ async function pipelineView(root, api) {
     const [rl, rc] = a ? (REC[a.recommendation] || ['Analysed', '']) : scoutRec ? ['Scout-rated', ''] : ['Not analysed', '']
     const act = nextAction(o, a)
     const sub = [o.source_platform && o.source_platform !== 'other' ? String(o.source_platform).replace(/_/g, ' ') : '', cleanLocation(o.listing_location), ago(o.updated_at)].filter(Boolean).join(' · ')
-    return `<div class="sv-row" data-pipe="${i}"><div class="sv-row-main"><div class="sv-row-title">${esc(o.listing_title || a?.identified_name || 'Untitled item')}</div>
+    return `<div class="sv-row" data-pipe="${i}"><div class="sv-row-main"><div class="sv-row-title">${a && window.flippersDeal && !showArchived ? `<button class="sv-title-btn" data-pipe-open>${esc(o.listing_title || a?.identified_name || 'Untitled item')}</button>` : esc(o.listing_title || a?.identified_name || 'Untitled item')}</div>
       <div class="sv-row-sub"><span class="sv-chip ${rc}">${esc(rl)}</span>${n(o.seller_asking_price) !== null ? `<span>Ask ${money(o.seller_asking_price)}</span>` : ''}${a && n(a.expected_profit) !== null ? `<span>Profit ${money(a.expected_profit)}</span>` : ''}${a && n(a.max_buy) !== null ? `<span>Max buy ${money(a.max_buy)}</span>` : ''}${sub ? `<span>${esc(sub)}</span>` : ''}</div></div>
       <div class="sv-row-actions">
         ${showArchived ? `<button class="button secondary" data-pipe-restore>Restore</button>` : `
@@ -297,6 +309,7 @@ async function pipelineView(root, api) {
     const o = list[Number(el.dataset.pipe)]
     const a = latestAnalysis(state, o.id)
     $('[data-pipe-act]', el)?.addEventListener('click', () => runAction(nextAction(o, a).kind, o, a))
+    $('[data-pipe-open]', el)?.addEventListener('click', () => window.flippersDeal?.open(o.id))
     $('[data-pipe-archive]', el)?.addEventListener('click', async () => { await archive([o.id], true); toast('Archived.'); await api.refresh() })
     $('[data-pipe-restore]', el)?.addEventListener('click', async () => { await archive([o.id], false); toast('Restored to pipeline.'); await api.refresh() })
     $('[data-pipe-stage]', el)?.addEventListener('change', async e => {
@@ -376,6 +389,11 @@ async function saveAnalysisToPipeline(button) {
       seller_signals: x.seller_signals || {}, overall_confidence: x.overall_confidence ?? null
     })
     if (aErr) throw aErr
+    // v0.151: keep the listing screenshots with the item so a later seller-reply re-check has the evidence.
+    const shots = $('#manualEvidenceInput')?.files
+    if (shots?.length && window.flippersDeal?.uploadImages) {
+      try { await window.flippersDeal.uploadImages(oppId, shots) } catch (e) { console.warn('[FlippersAI] screenshots not stored', e); toast('Saved — but the screenshots could not be stored with it.') }
+    }
     button.textContent = 'Saved · Open Pipeline'
     button.disabled = false
     button.onclick = () => go('pipeline')
@@ -436,5 +454,6 @@ if (appEl) new MutationObserver(() => {
 }).observe(appEl, { childList: true, subtree: true })
 
 styles()
-window.flippersViews = { today: todayView, find: findView, pipeline: pipelineView }
+window.flippersViews = { ...(window.flippersViews || {}), today: todayView, find: findView, pipeline: pipelineView }
+window.flippersShell = { prefillAnalyse }
 window.dispatchEvent(new CustomEvent('flippers:views-ready'))
