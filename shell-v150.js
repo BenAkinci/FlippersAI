@@ -113,7 +113,8 @@ function prefillAnalyse(o, label = 'your pipeline') {
     title: o.listing_title || '', price: o.seller_asking_price, currency: (o.currency || 'AUD').toUpperCase(),
     url: o.source_url || '', platform: ['facebook', 'depop', 'ebay', 'gumtree', 'vinted'].includes(plat) ? plat : '',
     location: cleanLocation(o.listing_location), seller: o.seller_name || '', condition: raw.condition || '',
-    description: o.listing_text || '', source_label: label
+    description: o.listing_text || '', source_label: label,
+    shipping_cost: raw.shipping_cost ?? ''
   }
   try { sessionStorage.setItem(PREFILL_KEY, JSON.stringify(payload)) } catch {}
   go('analyse')

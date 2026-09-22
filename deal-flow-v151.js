@@ -383,8 +383,9 @@ function verifyStep(mount, o, a) {
   const msg = a.seller_message || (qs.length ? `Hi! Is this still available? A couple of quick questions before I come over:\n${qs.map(q => `• ${q}`).join('\n')}` : '')
   const replies = arr(dealLog(o).replies)
   if (isRetail(o)) {
-    mount.innerHTML = `<div class="dp-card"><h3>Nothing to ask — it's a store listing</h3><p>There's no seller to message. Check the store page still shows the same price and stock, then buy it.</p><div class="dp-actions">${o.source_url ? `<a class="button secondary" href="${esc(o.source_url)}" target="_blank" rel="noopener">Open the store page ↗</a>` : ''}<button class="button primary" data-dp-goto="buy">I bought it</button></div></div>`
+    mount.innerHTML = `<div class="dp-card"><h3>Nothing to ask — it's a store listing</h3><p>There's no seller to message. Check the store page still shows the same price and stock, then buy it. If the price changed, re-analyse it with the new price.</p><div class="dp-actions">${o.source_url ? `<a class="button secondary" href="${esc(o.source_url)}" target="_blank" rel="noopener">Open the store page ↗</a>` : ''}<button class="button secondary" data-dp-reanalyse>Re-analyse</button><button class="button primary" data-dp-goto="buy">I bought it</button></div></div>`
     $$('[data-dp-goto]', mount).forEach(b => b.onclick = () => { stepTab[o.id] = b.dataset.dpGoto; current?.render() })
+    $('[data-dp-reanalyse]', mount).onclick = () => { closePanel(); window.flippersShell?.prefillAnalyse?.(o) }
     return
   }
   mount.innerHTML = `
@@ -423,7 +424,8 @@ function negotiateStep(mount, o, a) {
   const deal = dealLog(o)
   const title = o.listing_title || a.identified_name || 'the item'
   if (!env) {
-    mount.innerHTML = `<div class="dp-card"><h3>No safe maximum yet</h3><p>This analysis has no maximum buy price, so FlippersAI can't set offers. Re-check it with more evidence first.</p></div>`
+    mount.innerHTML = `<div class="dp-card"><h3>No safe maximum yet</h3><p>This analysis has no maximum buy price, so FlippersAI can't set offers. Re-analyse it (check the price and shipping are filled in).</p><div class="dp-actions"><button class="button primary" data-dp-reanalyse>Re-analyse</button></div></div>`
+    $('[data-dp-reanalyse]', mount).onclick = () => { closePanel(); window.flippersShell?.prefillAnalyse?.(o) }
     return
   }
   const pr = p => { const x = env.profitAt(p), r = env.roiAt(p); return x === null ? '' : `profit ${money(x)}${r !== null ? ` · ${Math.round(r)}% ROI` : ''}` }
