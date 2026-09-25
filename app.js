@@ -381,15 +381,15 @@ function onboardingPage() {
   } else if (s === 3) {
     body = `<form id="on3" class="form-stack"><div class="form-grid"><label>Monthly profit goal<input name="goal" type="number" min="0" step="50" placeholder="1000"></label><label>Experience<select name="experience"><option value="beginner">I’m starting out</option><option value="growing">I already resell</option><option value="pro">I’m experienced / high volume</option></select></label></div><label>How much guidance?<select name="guidance"><option value="teach">Teach me — walk me through everything</option><option value="assist">Assist me — recommendations, less explanation</option><option value="fast">Move fast — analysis and actions only</option></select></label><button class="button primary">Save and continue ${icon('chevron', 16)}</button></form>`
   } else {
-    body = `<div class="onboarding-final"><div class="next-icon">${icon('analyse', 23)}</div><p>You're set. Bring in a marketplace listing and FlippersAI will guide you from there.</p><button class="button primary" id="finishOnboarding">Analyse my first deal ${icon('chevron', 16)}</button></div>`
+    body = `<div class="onboarding-final"><div class="next-icon">${icon('spark', 23)}</div><p>FlippersAI checks Australian retail and marketplace deals for you every morning and works out what each one is really worth after fees and shipping. Start with today's finds, or paste a listing you've already spotted.</p><div class="onboarding-final-actions"><button class="button primary" id="finishToFind">Show me today's flips ${icon('chevron', 16)}</button><button class="button secondary" id="finishOnboarding">I have a listing to analyse</button></div></div>`
   }
 
-  const titles = ['Set your starting capital', 'Choose how you want to resell', 'Set your goal and guidance', 'Find your first opportunity']
+  const titles = ['Set your starting capital', 'Choose how you want to resell', 'Set your goal and guidance', "You're set — here's your first move"]
   const descriptions = [
     'Tell FlippersAI how much money you are comfortable using. This becomes the bankroll used for deal and risk recommendations.',
     'Choose whether you prefer home-based flips, local collection, shipping, or whatever gives the best return.',
     'Choose your target and how much explanation you want. You can change this any time.',
-    'You do not need to know what makes a good flip yet. Start with a listing and let FlippersAI help.'
+    'You do not need to know what makes a good flip yet. FlippersAI finds the opportunities and proves the numbers.'
   ]
 
   shell(`
@@ -434,11 +434,13 @@ function bindOnboarding() {
     }).eq('id', uid())
     await refresh()
   })
-  $('#finishOnboarding')?.addEventListener('click', async () => {
+  const finish = async view => {
     await supabase.from('profiles').update({ onboarding_completed:true }).eq('id', uid())
-    state.view = 'analyse'
+    state.view = view
     await refresh()
-  })
+  }
+  $('#finishOnboarding')?.addEventListener('click', () => finish('analyse'))
+  $('#finishToFind')?.addEventListener('click', () => finish('find'))
 }
 
 const stepNames = {
