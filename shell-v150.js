@@ -468,5 +468,5 @@ if (appEl) new MutationObserver(() => {
 
 styles()
 window.flippersViews = { ...(window.flippersViews || {}), today: todayView, find: findView, pipeline: pipelineView }
-window.flippersShell = { prefillAnalyse }
+window.flippersShell = { prefillAnalyse, openFind: tab => { findTab = tab || 'radar'; go('find') } }
 window.dispatchEvent(new CustomEvent('flippers:views-ready'))

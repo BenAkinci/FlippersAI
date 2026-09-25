@@ -88,7 +88,7 @@ async function newOnly(candidates) {
 }
 
 function scoreRow(c, r, engine) {
-  const a = { ...r, engine_version: engine || 'flippers-scout-batch-v090', scout_scan_depth: 'search_page', scout_enriched: false, auto_scan: true }
+  const a = { ...r, engine_version: engine || 'flippers-scout-batch-v090', scout_scan_depth: 'search_page', scout_enriched: false }
   const ask = Number(c.asking_price), profit = Number(a.expected_profit), roi = Number(a.expected_roi_percent), resale = Number(a.resale_mid)
   if ((Number.isFinite(profit) && profit <= 0) || (Number.isFinite(roi) && roi <= 0) || (Number.isFinite(ask) && Number.isFinite(resale) && resale < ask)) {
     a.overall_score = Math.min(Number(a.overall_score || 0), 49); a.success_potential = Math.min(Number(a.success_potential || 0), 45); a.recommendation = 'skip'
@@ -98,15 +98,20 @@ function scoreRow(c, r, engine) {
 const worthwhile = a => ['strong_buy', 'buy', 'negotiate'].includes(a.recommendation) || Number(a.overall_score || 0) >= 65
 
 async function runSearch(s) {
-  const user = await api.getUser()
-  if (!user?.id) throw new Error('Sign in to FlippersAI in the extension first.')
   const page = await readSearch(s)
+  return ratePage(page, { platform: s.platform, url: s.url, label: s.label, source: 'auto_scan', saved_search_id: s.id })
+}
+
+// Rate the new listings on a results page (shared by Auto scan and "Scan these results" in the side panel).
+async function ratePage(page, meta) {
+  const user = await api.getUser()
+  if (!user?.id) throw new Error('Connect scanning to your FlippersAI account first.')
   const fresh = (await newOnly(page.candidates || [])).slice(0, MAX_NEW_PER_SEARCH)
   if (!fresh.length) return { found: page.candidates?.length || 0, fresh: 0, good: 0, goodTitles: [] }
-  const session = await api.insert('scout_sessions', { user_id: user.id, platform: s.platform, source_url: s.url, query_text: s.label, status: 'running', candidate_count: fresh.length, selected_count: 0, metadata: { source: 'auto_scan', saved_search_id: s.id, captured_at: new Date().toISOString() } }, { single: true })
+  const session = await api.insert('scout_sessions', { user_id: user.id, platform: meta.platform, source_url: meta.url, query_text: meta.label, status: 'running', candidate_count: fresh.length, selected_count: 0, metadata: { source: meta.source, saved_search_id: meta.saved_search_id || null, captured_at: new Date().toISOString() } }, { single: true })
   if (!session?.id) throw new Error('Could not start the scan.')
-  const rows = await api.insert('scout_candidates', fresh.map((c, i) => ({ session_id: session.id, user_id: user.id, source_url: c.url, listing_id: c.listingId || null, title: c.title || null, asking_price: c.askingPrice ?? null, currency: c.currency || 'AUD', location: c.location || null, condition: c.condition || null, seller_name: c.sellerName || null, thumbnail_url: c.thumbnailUrl || null, region_code: c.regionCode || null, category_label: c.categoryLabel || 'Other', raw_capture: { raw_text: c.rawText || '', order_index: i, round_index: 1, region_code: c.regionCode || '', category_label: c.categoryLabel || 'Other', auto_scan: true }, scan_status: 'quick', selected: false, rank_score: null, saved: false })))
-  const good = []
+  const rows = await api.insert('scout_candidates', fresh.map((c, i) => ({ session_id: session.id, user_id: user.id, source_url: c.url, listing_id: c.listingId || null, title: c.title || null, asking_price: c.askingPrice ?? null, currency: c.currency || 'AUD', location: c.location || null, condition: c.condition || null, seller_name: c.sellerName || null, thumbnail_url: c.thumbnailUrl || null, region_code: c.regionCode || null, category_label: c.categoryLabel || 'Other', raw_capture: { raw_text: c.rawText || '', order_index: i, round_index: 1, region_code: c.regionCode || '', category_label: c.categoryLabel || 'Other', auto_scan: meta.source === 'auto_scan' }, scan_status: 'quick', selected: false, rank_score: null, saved: false })))
+  const good = [], rated = []
   for (let i = 0; i < (rows || []).length; i += BATCH) {
     const batch = rows.slice(i, i + BATCH)
     try {
@@ -118,13 +123,25 @@ async function runSearch(s) {
         const a = scoreRow(c, r, res?.engine_version)
         await api.update('scout_candidates', `id=eq.${c.id}`, { analysis: a, scan_status: 'rated', recommendation: a.recommendation || null, score: a.overall_score ?? null, resale_mid: a.resale_mid ?? null, expected_profit: a.expected_profit ?? null, expected_roi_percent: a.expected_roi_percent ?? null, updated_at: new Date().toISOString() })
         if (worthwhile(a)) good.push({ title: c.title || 'Listing', profit: a.expected_profit })
+        rated.push({ id: String(c.id), listingId: c.listing_id || '', url: c.source_url, title: c.title || '', score: Number(a.overall_score || 0), recommendation: a.recommendation || '', expected_profit: a.expected_profit ?? null, resale_mid: a.resale_mid ?? null })
       }
     } catch (e) {
       for (const c of batch) await api.update('scout_candidates', `id=eq.${c.id}`, { scan_status: 'failed', analysis: { error: String(e?.message || e) }, updated_at: new Date().toISOString() }).catch(() => {})
     }
   }
   await api.update('scout_sessions', `id=eq.${session.id}`, { status: 'completed' }).catch(() => {})
-  return { found: page.candidates.length, fresh: fresh.length, good: good.length, goodTitles: good.slice(0, 3).map(g => g.title) }
+  return { found: page.candidates.length, fresh: fresh.length, good: good.length, goodTitles: good.slice(0, 3).map(g => g.title), rated }
+}
+
+// Side panel: scan the results page already open in this tab (reads two screens of it).
+async function scanTab(tabId) {
+  const tab = await chrome.tabs.get(tabId)
+  const first = await collect(tabId, false)
+  if (first.mode !== 'collection') throw new Error('This is a single listing — use Analyse this listing instead.')
+  const more = await collect(tabId, true).catch(() => ({ candidates: [] }))
+  const seen = new Set(), candidates = []
+  for (const c of [...(first.candidates || []), ...(more.candidates || [])]) { const k = c.listingId || c.url; if (k && !seen.has(k)) { seen.add(k); candidates.push(c) } }
+  return ratePage({ ...first, candidates }, { platform: platformOf(tab.url), url: tab.url, label: first.query || 'Scan', source: 'side_panel' })
 }
 
 export async function runDue(force = false, onlyId = null) {
@@ -141,7 +158,7 @@ export async function runDue(force = false, onlyId = null) {
       const due = force || !s.last_run || Date.now() - Date.parse(s.last_run) >= s.every_hours * 3600000
       if (!due) continue
       let result
-      try { result = { ok: true, ...(await runSearch(s)) } } catch (e) { result = { ok: false, error: String(e?.message || e) } }
+      try { const { rated, ...r } = await runSearch(s); result = { ok: true, ...r } } catch (e) { result = { ok: false, error: String(e?.message || e) } }
       const now = new Date().toISOString()
       await saveSearches((await listSearches()).map(x => x.id === s.id ? { ...x, last_run: now, last_result: result } : x))
       out.push({ id: s.id, label: s.label, ...result })
@@ -166,7 +183,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     FLIPPERS_AUTOSCAN_ADD: async () => ({ search: await addSearch(message) }),
     FLIPPERS_AUTOSCAN_REMOVE: async () => { await removeSearch(message.id); return {} },
     FLIPPERS_AUTOSCAN_TOGGLE: async () => { await toggleSearch(message.id, message.enabled !== false); return {} },
-    FLIPPERS_AUTOSCAN_RUN: async () => ({ results: await runDue(true, message.id || null) })
+    FLIPPERS_AUTOSCAN_RUN: async () => ({ results: await runDue(true, message.id || null) }),
+    FLIPPERS_AUTOSCAN_SCAN_TAB: async () => ({ result: await scanTab(message.tabId) })
   }
   const h = handlers[message?.type]
   if (!h) return false

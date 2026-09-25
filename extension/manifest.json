@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlippersAI \u2014 Reseller Workspace",
-  "version": "0.95.0",
-  "description": "FlippersAI v0.152 \u2014 marketplace Scout, ratings and Auto scan of saved searches.",
+  "version": "0.96.0",
+  "description": "FlippersAI side panel: the full FlippersAI app plus Analyse this listing, Scan these results and Auto scan for Facebook Marketplace, eBay, Gumtree and Depop.",
   "minimum_chrome_version": "114",
   "permissions": [
     "activeTab",
@@ -42,7 +42,7 @@
     }
   },
   "side_panel": {
-    "default_path": "sidepanel.html"
+    "default_path": "panel.html"
   },
   "content_scripts": [
     {
