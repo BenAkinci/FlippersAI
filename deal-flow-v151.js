@@ -16,6 +16,7 @@ const round5 = v => Math.round(v / 5) * 5
 const floor5 = v => Math.floor(v / 5) * 5
 const today = () => new Date().toISOString().slice(0, 10)
 const daysSince = d => d ? Math.max(0, Math.floor((Date.now() - Date.parse(d)) / 86400000)) : null
+const daysBetween = (a, b) => a && b ? Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 86400000)) : null
 const app = () => window.flippersApp
 const state = () => app()?.state || {}
 
@@ -94,6 +95,11 @@ function styles() {
   .dp-note{font-size:12.5px;color:var(--muted)}
   .dp-checks{display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.45}
   .dp-busy{opacity:.55;pointer-events:none}
+  .st-record{margin:0 0 18px;padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--soft)}
+  .st-record-head h2{margin:0 0 4px;font-size:17px;letter-spacing:-.01em}
+  .st-record-head p{margin:0 0 14px;color:var(--muted);font-size:13.5px;line-height:1.45;max-width:640px}
+  .st-record-head p b{color:var(--ink);font-weight:650}
+  .st-record .sv-metrics{gap:10px}
   .st-row-money{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
   .st-row-money b{color:var(--ink);font-weight:650}
   .st-row-money b.pos{color:var(--green)} .st-row-money b.neg{color:var(--red)}
@@ -643,6 +649,33 @@ function actualProfit(i, s) {
   return net - (n(s.shipping_cost) || 0) - (n(s.other_costs) || 0) - costBasis(i)
 }
 
+// Track record: what FlippersAI predicted against what the item actually made.
+// Only shown once something has sold, and it is not flattered - if the estimates run
+// high the user is told by how much, because that is what makes the numbers trustworthy.
+function trackRecord(items) {
+  const sold = items.filter(i => i.status === 'sold').map(i => ({ i, s: saleFor(i) })).filter(x => x.s)
+  if (!sold.length) return ''
+  const predResale = sold.reduce((t, x) => t + (n(x.i.predicted_resale_mid) || 0), 0)
+  const gotResale = sold.reduce((t, x) => t + (n(x.s.sale_price) || 0), 0)
+  const predProfit = sold.reduce((t, x) => t + (n(x.i.predicted_profit) || 0), 0)
+  const gotProfit = sold.reduce((t, x) => t + (actualProfit(x.i, x.s) || 0), 0)
+  const withPred = sold.filter(x => n(x.i.predicted_resale_mid))
+  const drift = withPred.length && predResale > 0 ? Math.round((gotResale - predResale) / predResale * 100) : null
+  const days = sold.map(x => daysBetween(x.i.purchase_date || x.i.created_at, x.s.sold_at)).filter(d => d !== null)
+  const avgDays = days.length ? Math.round(days.reduce((a, b) => a + b, 0) / days.length) : null
+  const line = drift === null ? 'Not enough estimates yet to measure accuracy.'
+    : Math.abs(drift) <= 5 ? `Resale estimates have been accurate to within ${Math.abs(drift)}%.`
+    : drift < 0 ? `Resale estimates have run <b>${Math.abs(drift)}% high</b> — worth aiming a little below the estimate when you price.`
+    : `Items have sold <b>${drift}% above</b> the estimate — the estimates are conservative for what you buy.`
+  return `<section class="st-record"><div class="st-record-head"><h2>Your track record</h2><p>${line}</p></div>
+    <div class="sv-metrics">
+      <div class="sv-metric"><small>Flips completed</small><b>${sold.length}</b></div>
+      <div class="sv-metric"><small>Predicted profit</small><b>${money(predProfit)}</b></div>
+      <div class="sv-metric"><small>Actual profit</small><b class="${gotProfit >= 0 ? 'pos' : 'neg'}">${money(gotProfit)}</b></div>
+      <div class="sv-metric"><small>Avg. days to sell</small><b>${avgDays === null ? '—' : avgDays}</b></div>
+    </div></section>`
+}
+
 function stockView(root, api) {
   styles()
   const st = api.state
@@ -661,7 +694,7 @@ function stockView(root, api) {
     const next = nextStockAction(i, s)
     const money1 = [
       `<span>Cost <b>${money(costBasis(i))}</b></span>`,
-      s ? `<span>Sold <b>${money(s.sale_price)}</b></span>` : n(i.predicted_resale_mid) !== null ? `<span>Est. resale <b>${money(i.predicted_resale_mid)}</b></span>` : '',
+      s ? `<span>Sold <b>${money(s.sale_price)}</b>${n(i.predicted_resale_mid) ? ` (est. ${money(i.predicted_resale_mid)})` : ''}</span>` : n(i.predicted_resale_mid) !== null ? `<span>Est. resale <b>${money(i.predicted_resale_mid)}</b></span>` : '',
       l && !s ? `<span>Listed at <b>${money(l.listing_price)}</b>${l.platform ? ` on ${esc(l.platform)}` : ''}</span>` : '',
       ap !== null && i.status === 'sold' ? `<span>Profit <b class="${ap >= 0 ? 'pos' : 'neg'}">${money(ap)}</b></span>` : !s && n(i.predicted_profit) !== null ? `<span>Est. profit <b class="${n(i.predicted_profit) >= 0 ? 'pos' : 'neg'}">${money(i.predicted_profit)}</b></span>` : '',
       held !== null && !['sold', 'returned', 'written_off'].includes(i.status) ? `<span>Held <b>${held}d</b></span>` : ''
@@ -681,6 +714,7 @@ function stockView(root, api) {
       <div class="sv-metric"><small>Est. stock value</small><b>${money(estValue)}</b></div>
       <div class="sv-metric"><small>Realised profit</small><b class="pos">${money(p.realized_profit || 0)}</b></div>
     </div>
+    ${trackRecord(items)}
     ${items.length ? `<div class="sv-filters">${[['all', 'All', items.length], ...INV_GROUPS.filter(([k]) => counts[k]).map(([k, l]) => [k, l, counts[k]])].map(([k, l, c]) => `<button class="sv-filter ${stockFilter === k ? 'active' : ''}" data-stock-filter="${k}">${l}<span>${c}</span></button>`).join('')}</div>` : ''}
     ${list.length ? `<div class="sv-list">${list.map(row).join('')}</div>` : items.length ? `<div class="sv-empty">Nothing in this group.</div>` : `<div class="sv-empty"><strong>No stock yet.</strong> When you buy something from your Pipeline, press <em>I bought it</em> — it lands here with its real cost, ready to prepare and list.</div><div><button class="button primary" data-shell-go="pipeline">Open Pipeline</button></div>`}`
   $$('[data-stock-filter]', root).forEach(b => b.onclick = () => { stockFilter = b.dataset.stockFilter; stockView(root, api) })

@@ -66,6 +66,11 @@ function styles() {
   .sv-drop{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);padding:18px 20px;flex-wrap:wrap}
   .sv-drop strong{font-size:16px}
   .sv-drop p{margin:4px 0 0;color:var(--muted);font-size:14px}
+  .find-note{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:14px 0 2px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--soft);font-size:13px;color:var(--muted);line-height:1.5}
+  .find-note div{flex:1 1 320px;min-width:0}
+  .find-note strong{color:var(--ink)}
+  .find-note .button{flex:0 0 auto}
+  @media (max-width:560px){.find-note .button{width:100%;justify-content:center}}
   .sv-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin:0 0 4px;overflow-x:auto;scrollbar-width:none}
   .sv-tabs::-webkit-scrollbar{display:none}
   .sv-tab{border:0;background:transparent;padding:10px 14px;font:inherit;font-weight:650;font-size:14px;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
@@ -246,7 +251,9 @@ function bindFindTabs(root) {
 function findView(root) {
   findTab = findTab || 'radar'
   if (findTab !== 'radar') return openFindTab()
-  root.innerHTML = `<section class="sv-head"><div><h1>Find</h1><p>Opportunities worth your time — from retail deals, marketplace listings and the community.</p></div></section>${findTabsMarkup()}<section class="sv-section" id="findRadar"></section>`
+  root.innerHTML = `<section class="sv-head"><div><h1>Find</h1><p>Opportunities worth your time — from retail deals, marketplace listings and the community.</p></div></section>${findTabsMarkup()}
+    <div class="find-note"><div><strong>Retail flips are shared.</strong> Every FlippersAI user sees the same retail deals, so the good ones go fast — the list below is ordered for you and says when other flippers are already on something. Your own marketplace scans are private to you, and that is where most of your flips should come from.</div><button class="button secondary" data-find-tab="marketplace">My marketplace finds</button></div>
+    <section class="sv-section" id="findRadar"></section>`
   bindFindTabs(root)
   mountRadar($('#findRadar', root), false)
 }
