@@ -10,28 +10,42 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import OpenAI from 'npm:openai'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const ENGINE = 'deal-radar-v2.3'
-// v2.2: more sources. All feeds verified 2026-09-22. OzBargain rate-limits (HTTP 429) rapid
+const ENGINE = 'deal-radar-v2.4'
+// v2.4: 40 rotating feeds (was 23) and a deeper funnel - 120 triaged / 16 price-checked per run
+// (was 80 / 10), because the limit on good finds was how few deals got as far as a resale check.
+// v2.2: more sources. All feeds verified 2026-09-22; the v2.4 additions verified 2026-09-25. OzBargain rate-limits (HTTP 429) rapid
 // requests, so core feeds are fetched every run and the brand/category feeds rotate: each run
 // takes the next ROTATE_PER_RUN of them (a full cycle every few runs), with a pause between.
 const OZB = 'https://www.ozbargain.com.au'
 const CORE_FEEDS = ['/tag/pricing-error/feed', '/deals/popular/feed', '/feed', '/deals/feed'].map(p => OZB + p)
 const ROTATING_FEEDS = [
+  // categories
   '/cat/electrical-electronics/deals/feed', '/cat/computing/deals/feed', '/cat/gaming/deals/feed',
   '/cat/toys-kids/deals/feed', '/cat/fashion-apparel/deals/feed', '/cat/sports-outdoors/deals/feed',
-  '/cat/home-garden/deals/feed', '/tag/lego/feed', '/tag/pokemon/feed', '/tag/pokemon-tcg/feed', '/tag/dyson/feed',
-  '/tag/nike/feed', '/tag/adidas/feed', '/tag/new-balance/feed', '/tag/sneakers/feed', '/tag/nintendo-switch/feed',
-  '/tag/playstation-5/feed', '/tag/apple/feed', '/tag/sony/feed', '/tag/garmin/feed', '/tag/dewalt/feed',
-  '/tag/milwaukee/feed', '/tag/makita/feed'
+  '/cat/home-garden/deals/feed', '/cat/mobile/deals/feed', '/cat/health-beauty/deals/feed',
+  '/cat/automotive/deals/feed', '/cat/entertainment/deals/feed',
+  // collectables / toys
+  '/tag/lego/feed', '/tag/pokemon/feed', '/tag/pokemon-tcg/feed', '/tag/magic-the-gathering/feed', '/tag/funko/feed',
+  // footwear / apparel
+  '/tag/nike/feed', '/tag/adidas/feed', '/tag/new-balance/feed', '/tag/sneakers/feed',
+  // gaming
+  '/tag/nintendo-switch/feed', '/tag/playstation-5/feed', '/tag/xbox/feed',
+  // electronics
+  '/tag/apple/feed', '/tag/sony/feed', '/tag/samsung/feed', '/tag/bose/feed', '/tag/jbl/feed',
+  '/tag/logitech/feed', '/tag/gopro/feed', '/tag/dji/feed', '/tag/garmin/feed', '/tag/lenovo/feed',
+  // appliances
+  '/tag/dyson/feed', '/tag/breville/feed', '/tag/philips/feed', '/tag/weber/feed',
+  // tools
+  '/tag/dewalt/feed', '/tag/milwaukee/feed', '/tag/makita/feed', '/tag/ryobi/feed', '/tag/bosch/feed'
 ].map(p => OZB + p)
-const ROTATE_PER_RUN = 12
+const ROTATE_PER_RUN = 14
 // Amazon AU biggest price drops (camelcamelcamel). Items link to camel's product page; the ASIN gives the Amazon URL.
 const CAMEL_FEEDS = ['https://au.camelcamelcamel.com/top_drops/feed?t=daily', 'https://au.camelcamelcamel.com/top_drops/feed?t=weekly']
 const FEED_PAUSE_MS = 1200
 const PRIORITY_FEEDS = new Set([OZB + '/tag/pricing-error/feed', OZB + '/deals/popular/feed'])
 const TRIAGE_BATCH = 40
-const MAX_TRIAGE = 80
-const MAX_EVALUATE = 10
+const MAX_TRIAGE = 120
+const MAX_EVALUATE = 16
 const EVAL_CONCURRENCY = 5
 const MIN_RUN_GAP_MINUTES = 45
 
