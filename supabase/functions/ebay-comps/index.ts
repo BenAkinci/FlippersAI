@@ -151,6 +151,13 @@ Deno.serve(async req => {
         client_id_has_stray_whitespace: id !== id.trim(),
         client_secret_has_stray_whitespace: secret !== secret.trim(),
         looks_swapped: /-PRD-|-SBX-/i.test(secret) && !/-PRD-|-SBX-/i.test(id),
+        // A Cert ID starts with PRD- or SBX-. A bare UUID here means the Dev ID was
+        // pasted by mistake: it is the same length, sits next to it on the keys page,
+        // and is not a secret eBay will authenticate with.
+        client_secret_kind: /^PRD-/i.test(secret) ? 'production cert id'
+          : /^SBX-/i.test(secret) ? 'sandbox cert id'
+          : /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(secret) ? 'looks like the Dev ID, not the Cert ID'
+          : 'unrecognised',
         expected: 'client_id looks like BenAkinc-FlippersA-PRD-xxxxxxxxx-xxxxxxxx (about 40 chars); client_secret is PRD-xxxxxxxxxxxx-xxxx-xxxx-xxxx-xxxx (about 37 chars)'
       })
     }
