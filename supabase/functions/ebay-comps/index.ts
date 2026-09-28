@@ -12,9 +12,19 @@
 // the Marketplace Insights API, which is limited-release. So everything here is
 // labelled basis 'active' and callers must apply their own haircut - asking prices
 // are not sale prices. Nothing in this function ever claims otherwise.
+//
+// v2 relevance filtering. A bare keyword search is worthless as a comp set: "Dyson V15
+// Detect" returned 1,267 listings with a median of A$36, because eBay is full of filters,
+// brushes and "fits Dyson V15" accessories. A median built from those would understate
+// resale by ten times and the whole analysis downstream would be wrong. So a listing only
+// counts as a comp if it names every meaningful word in the query, does not advertise
+// itself as being FOR or COMPATIBLE WITH the product, is not an obvious part or bundle,
+// and - when the caller passes price_hint - sits in a believable band around it. Every
+// response reports how many listings were dropped and why, so the filtering is visible
+// rather than silent.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
-const ENGINE = 'ebay-comps-v1'
+const ENGINE = 'ebay-comps-v2'
 const OAUTH = 'https://api.ebay.com/identity/v1/oauth2/token'
 const SEARCH = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 const MARKETPLACE = 'EBAY_AU'
@@ -22,6 +32,15 @@ const SCOPE = 'https://api.ebay.com/oauth/api_scope'
 const MAX_LIMIT = 100
 // A median from two listings is not a market. Below this, say so instead of pretending.
 const MIN_FOR_STATS = 4
+// Words that mean "this is not the product, it is something for the product".
+const COMPATIBILITY = /\b(for|fits|compatible|suits|suitable for|replacement|spare|aftermarket|generic)\b/i
+const PART_WORDS = /\b(filter|filters|brush|brushes|battery|batteries|charger|cable|adapter|adaptor|case|cover|sleeve|skin|bag|stand|holder|mount|bracket|screen protector|protector|sticker|decal|manual|part|parts|accessory|accessories|attachment|nozzle|hose|wand|docking|dock|strap|band|lens cap|remote|power supply|cord)\b/i
+// Multi-item listings distort a per-item median in the other direction.
+const BUNDLE_WORDS = /\b(bundle|lot of|joblot|job lot|bulk|wholesale|x\s?\d{2,}|\d+\s?pack|pack of)\b/i
+// Words too common to prove a listing is the right product.
+const STOPWORDS = new Set(['the', 'and', 'with', 'for', 'new', 'used', 'genuine', 'original', 'official', 'edition', 'version'])
+// How far from a caller's price hint a listing can sit and still be the same product.
+const PRICE_BAND = { low: 0.3, high: 3.5 }
 // "Well below the market" for the underpriced scan. Tight enough that noise does not qualify.
 const UNDERPRICED_RATIO = 0.7
 
@@ -108,6 +127,31 @@ function trimmed(items: Item[]) {
   return items.filter(i => i.price >= lo && i.price <= hi)
 }
 
+// Meaningful words from the query: model numbers and names, not filler.
+function queryTokens(q: string) {
+  return q.toLowerCase().match(/[a-z0-9][a-z0-9.+-]*/g)?.filter(t => t.length >= 2 && !STOPWORDS.has(t)) ?? []
+}
+
+// Keep only listings that are plausibly the product itself. Returns the survivors and a
+// plain-language count of what went and why.
+function relevant(items: Item[], q: string, priceHint: number | null) {
+  const tokens = queryTokens(q)
+  const asked = q.toLowerCase()
+  // If the user is genuinely shopping for a filter or a battery, do not strip them out.
+  const wantsPart = PART_WORDS.test(asked)
+  const dropped = { missing_query_words: 0, accessory_or_compatible: 0, bundle_or_lot: 0, price_implausible: 0 }
+  const kept = items.filter(i => {
+    const t = i.title.toLowerCase()
+    if (tokens.length && !tokens.every(tok => t.includes(tok))) { dropped.missing_query_words++; return false }
+    if (!wantsPart && COMPATIBILITY.test(t)) { dropped.accessory_or_compatible++; return false }
+    if (!wantsPart && PART_WORDS.test(t)) { dropped.accessory_or_compatible++; return false }
+    if (BUNDLE_WORDS.test(t)) { dropped.bundle_or_lot++; return false }
+    if (priceHint !== null && (i.price < priceHint * PRICE_BAND.low || i.price > priceHint * PRICE_BAND.high)) { dropped.price_implausible++; return false }
+    return true
+  })
+  return { kept, dropped }
+}
+
 function stats(items: Item[]) {
   const core = trimmed(items)
   const prices = core.map(i => i.price)
@@ -164,25 +208,30 @@ Deno.serve(async req => {
 
     if (!q) return json({ ok: false, error: 'Tell me what to look up (query).' }, 400)
 
+    const priceHint = Number.isFinite(Number(body.price_hint)) && Number(body.price_hint) > 0 ? Number(body.price_hint) : null
+
     if (mode === 'comps') {
       // Fixed-price only: auctions mid-flight are not a price anyone paid.
       const { items, total } = await search(q, { limit: 100, filter: 'buyingOptions:{FIXED_PRICE}' })
-      const s = stats(items)
+      const { kept, dropped } = relevant(items, q, priceHint)
+      const s = stats(kept)
       return json({
         ok: true, engine: ENGINE, marketplace: MARKETPLACE, query: q, basis: 'active',
-        note: 'Current eBay AU asking prices, not sold prices. Asking prices typically sit above what items sell for.',
-        total_matches: total, ...s, cheapest: sample(items)
+        note: 'Current eBay AU asking prices for this product, not sold prices. Asking prices typically sit above what items sell for.',
+        total_matches: total, returned_by_ebay: items.length, dropped_as_irrelevant: dropped,
+        ...s, cheapest: sample(kept)
       })
     }
 
     if (mode === 'underpriced') {
       const { items } = await search(q, { limit: 100, filter: 'buyingOptions:{FIXED_PRICE}' })
-      const s = stats(items)
+      const { kept, dropped } = relevant(items, q, priceHint)
+      const s = stats(kept)
       if (!s.enough_for_a_market_view || s.median === null) {
         return json({ ok: true, engine: ENGINE, query: q, enough_for_a_market_view: false, candidates: [], note: `Only ${s.used_for_stats} comparable listings — not enough to tell what is underpriced.` })
       }
       const cut = s.median * UNDERPRICED_RATIO
-      const candidates = items
+      const candidates = kept
         .filter(i => i.price <= cut)
         .sort((a, b) => a.price - b.price)
         .slice(0, 10)
@@ -194,7 +243,8 @@ Deno.serve(async req => {
       return json({
         ok: true, engine: ENGINE, marketplace: MARKETPLACE, query: q, basis: 'active',
         note: 'Candidates only. A low price usually means a reason - condition, missing parts, a bad seller or the wrong item. Each one still needs Analyse.',
-        median: s.median, low: s.low, high: s.high, listings: s.listings, candidates
+        median: s.median, low: s.low, high: s.high, listings: s.listings,
+        returned_by_ebay: items.length, dropped_as_irrelevant: dropped, candidates
       })
     }
 
