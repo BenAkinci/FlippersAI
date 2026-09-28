@@ -38,8 +38,10 @@ let cached: { token: string, expires: number } | null = null
 
 async function token() {
   if (cached && cached.expires > Date.now() + 60_000) return cached.token
-  const id = Deno.env.get('EBAY_CLIENT_ID')
-  const secret = Deno.env.get('EBAY_CLIENT_SECRET')
+  // Trimmed: a key pasted into a dashboard field often carries a trailing space or
+  // newline, and eBay answers "client authentication failed" with no hint why.
+  const id = Deno.env.get('EBAY_CLIENT_ID')?.trim()
+  const secret = Deno.env.get('EBAY_CLIENT_SECRET')?.trim()
   if (!id || !secret) throw new Error('eBay is not configured on the server (missing credentials).')
   const res = await fetch(OAUTH, {
     method: 'POST',
@@ -134,7 +136,6 @@ Deno.serve(async req => {
     const body = await req.json().catch(() => ({}))
     const mode = String(body.mode || 'comps')
     const q = String(body.query || body.product_name || '').trim()
-    if (!q) return json({ ok: false, error: 'Tell me what to look up (query).' }, 400)
 
     // Configuration check. Reports the SHAPE of the credentials only - never any part of
     // their value - so a bad paste can be diagnosed without anyone seeing the keys.
@@ -153,6 +154,8 @@ Deno.serve(async req => {
         expected: 'client_id looks like BenAkinc-FlippersA-PRD-xxxxxxxxx-xxxxxxxx (about 40 chars); client_secret is PRD-xxxxxxxxxxxx-xxxx-xxxx-xxxx-xxxx (about 37 chars)'
       })
     }
+
+    if (!q) return json({ ok: false, error: 'Tell me what to look up (query).' }, 400)
 
     if (mode === 'comps') {
       // Fixed-price only: auctions mid-flight are not a price anyone paid.
