@@ -4,6 +4,7 @@
 // Two modes:
 //   comps       what is this product actually listed at on eBay AU right now
 //               (count, median, quartiles, condition split, sample links)
+//   check       whether the stored credentials are the right shape (never their value)
 //   underpriced listings in a search that sit well below that search's own median,
 //               i.e. candidate buys - this is per-user sourcing, not a shared feed
 //
@@ -134,6 +135,24 @@ Deno.serve(async req => {
     const mode = String(body.mode || 'comps')
     const q = String(body.query || body.product_name || '').trim()
     if (!q) return json({ ok: false, error: 'Tell me what to look up (query).' }, 400)
+
+    // Configuration check. Reports the SHAPE of the credentials only - never any part of
+    // their value - so a bad paste can be diagnosed without anyone seeing the keys.
+    if (mode === 'check') {
+      const id = Deno.env.get('EBAY_CLIENT_ID') || ''
+      const secret = Deno.env.get('EBAY_CLIENT_SECRET') || ''
+      const env = /-PRD-/i.test(id) ? 'production' : /-SBX-/i.test(id) ? 'sandbox' : 'unrecognised'
+      return json({
+        ok: true, engine: ENGINE,
+        client_id_present: Boolean(id), client_secret_present: Boolean(secret),
+        client_id_environment: env,
+        client_id_length: id.length, client_secret_length: secret.length,
+        client_id_has_stray_whitespace: id !== id.trim(),
+        client_secret_has_stray_whitespace: secret !== secret.trim(),
+        looks_swapped: /-PRD-|-SBX-/i.test(secret) && !/-PRD-|-SBX-/i.test(id),
+        expected: 'client_id looks like BenAkinc-FlippersA-PRD-xxxxxxxxx-xxxxxxxx (about 40 chars); client_secret is PRD-xxxxxxxxxxxx-xxxx-xxxx-xxxx-xxxx (about 37 chars)'
+      })
+    }
 
     if (mode === 'comps') {
       // Fixed-price only: auctions mid-flight are not a price anyone paid.
