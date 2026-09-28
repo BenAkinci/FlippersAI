@@ -243,16 +243,29 @@ function mountRadar(el, compact) {
 // ---------------------------------------------------------------- FIND
 let findTab = 'radar'
 function findTabsMarkup() {
-  return `<div class="sv-tabs" id="findTabs" role="tablist">${[['radar', 'Retail flips'], ['marketplace', 'Marketplace finds'], ['community', 'Community']].map(([k, l]) => `<button class="sv-tab ${findTab === k ? 'active' : ''}" role="tab" aria-selected="${findTab === k}" data-find-tab="${k}">${l}</button>`).join('')}</div>`
+  return `<div class="sv-tabs" id="findTabs" role="tablist">${[['radar', 'Retail flips'], ['ebay', 'eBay finds'], ['marketplace', 'Marketplace finds'], ['community', 'Community']].map(([k, l]) => `<button class="sv-tab ${findTab === k ? 'active' : ''}" role="tab" aria-selected="${findTab === k}" data-find-tab="${k}">${l}</button>`).join('')}</div>`
 }
 function bindFindTabs(root) {
   $$('[data-find-tab]', root).forEach(b => b.onclick = () => { findTab = b.dataset.findTab; openFindTab() })
 }
+// Tabs rendered by this shell rather than by a legacy page.
+const SHELL_FIND_TABS = ['radar', 'ebay']
+
 function findView(root) {
   findTab = findTab || 'radar'
-  if (findTab !== 'radar') return openFindTab()
+  if (!SHELL_FIND_TABS.includes(findTab)) return openFindTab()
+  if (findTab === 'ebay') {
+    root.innerHTML = `<section class="sv-head"><div><h1>Find</h1><p>Opportunities worth your time — from retail deals, eBay, marketplace listings and the community.</p></div></section>${findTabsMarkup()}
+      <section class="sv-section" id="findEbay"></section>`
+    bindFindTabs(root)
+    const el = $('#findEbay', root)
+    const doMount = () => window.flippersEbay?.mount(el)
+    if (window.flippersEbay) doMount()
+    else { el.innerHTML = '<div class="sv-empty">Loading…</div>'; window.addEventListener('flippers:ebay-ready', doMount, { once: true }) }
+    return
+  }
   root.innerHTML = `<section class="sv-head"><div><h1>Find</h1><p>Opportunities worth your time — from retail deals, marketplace listings and the community.</p></div></section>${findTabsMarkup()}
-    <div class="find-note"><div><strong>Retail flips are shared.</strong> Every FlippersAI user sees the same retail deals, so the good ones go fast — the list below is ordered for you and says when other flippers are already on something. Your own marketplace scans are private to you, and that is where most of your flips should come from.</div><button class="button secondary" data-find-tab="marketplace">My marketplace finds</button></div>
+    <div class="find-note"><div><strong>Retail flips are shared.</strong> Every FlippersAI user sees the same retail deals, so the good ones go fast — the list below is ordered for you and says when other flippers are already on something. Your own marketplace scans are private to you, and that is where most of your flips should come from.</div><button class="button secondary" data-find-tab="ebay">Find my own on eBay</button></div>
     <section class="sv-section" id="findRadar"></section>`
   bindFindTabs(root)
   mountRadar($('#findRadar', root), false)
@@ -260,13 +273,13 @@ function findView(root) {
 // Marketplace and Community are rendered by their existing modules (website-hq, community);
 // this shell adds the Find header + tabs above them.
 function openFindTab() {
-  if (findTab === 'radar' || window.flippersApp?.view !== 'find') { go('find'); return } // findView takes over from here
+  if (SHELL_FIND_TABS.includes(findTab) || window.flippersApp?.view !== 'find') { go('find'); return } // findView takes over from here
   const legacy = findTab === 'marketplace' ? $('[data-web-v086="shortlist"]') : $('.community-nav')
   legacy?.click()
   setTimeout(ensureFindChrome, 60)
 }
 function ensureFindChrome() {
-  if (window.flippersApp?.view !== 'find' || findTab === 'radar') { $('.content.find-legacy')?.classList.remove('find-legacy'); return }
+  if (window.flippersApp?.view !== 'find' || SHELL_FIND_TABS.includes(findTab)) { $('.content.find-legacy')?.classList.remove('find-legacy'); return }
   const content = $('.content')
   if (!content || $('#findTabs', content)) return
   const wrap = document.createElement('div')
