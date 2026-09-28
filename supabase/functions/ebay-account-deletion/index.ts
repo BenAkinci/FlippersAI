@@ -29,7 +29,19 @@ Deno.serve(async req => {
 
   if (req.method === 'GET') {
     const challenge = url.searchParams.get('challenge_code')
-    if (!challenge) return new Response(JSON.stringify({ ok: true, engine: ENGINE, note: 'Endpoint is live. eBay calls it with ?challenge_code=... to verify ownership.' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    if (!challenge) {
+      // A fingerprint of the stored token, not the token: enough to prove both sides hold
+      // the same string when eBay's validation fails, and useless to anyone who sees it.
+      const fp = verificationToken ? hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verificationToken))).slice(0, 12) : null
+      return new Response(JSON.stringify({
+        ok: true, engine: ENGINE,
+        note: 'Endpoint is live. eBay calls it with ?challenge_code=... to verify ownership.',
+        endpoint_used_in_hash: endpoint,
+        verification_token_present: Boolean(verificationToken),
+        verification_token_length: verificationToken?.length ?? 0,
+        verification_token_fingerprint: fp
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
     if (!verificationToken) return new Response(JSON.stringify({ error: 'Verification token is not configured on the server.' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(challenge + verificationToken + endpoint))
     return new Response(JSON.stringify({ challengeResponse: hex(digest) }), { status: 200, headers: { 'Content-Type': 'application/json' } })
