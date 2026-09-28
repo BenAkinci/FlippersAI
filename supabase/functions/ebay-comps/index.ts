@@ -24,7 +24,7 @@
 // rather than silent.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
-const ENGINE = 'ebay-comps-v2'
+const ENGINE = 'ebay-comps-v3'
 const OAUTH = 'https://api.ebay.com/identity/v1/oauth2/token'
 const SEARCH = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 const MARKETPLACE = 'EBAY_AU'
@@ -34,13 +34,18 @@ const MAX_LIMIT = 100
 const MIN_FOR_STATS = 4
 // Words that mean "this is not the product, it is something for the product".
 const COMPATIBILITY = /\b(for|fits|compatible|suits|suitable for|replacement|spare|aftermarket|generic)\b/i
-const PART_WORDS = /\b(filter|filters|brush|brushes|battery|batteries|charger|cable|adapter|adaptor|case|cover|sleeve|skin|bag|stand|holder|mount|bracket|screen protector|protector|sticker|decal|manual|part|parts|accessory|accessories|attachment|nozzle|hose|wand|docking|dock|strap|band|lens cap|remote|power supply|cord)\b/i
+const PART_WORDS = /\b(filter|filters|brush|brushes|battery|batteries|charger|cable|adapter|adaptor|case|cover|sleeve|skin|bag|stand|holder|mount|bracket|screen protector|protector|sticker|decal|manual|part|parts|accessory|accessories|attachment|nozzle|hose|wand|docking|dock|strap|band|lens cap|remote|power supply|cord|memory card|sd card|micro ?sd|card reader|reader|board|pcb|module|ribbon|flex|shell|housing|faceplate|grip|thumb ?stick|thumb ?grip|joystick|stylus|screen|glass|film|lcd|digitiser|digitizer|motherboard|repair|kit|spares)\b/i
 // Multi-item listings distort a per-item median in the other direction.
 const BUNDLE_WORDS = /\b(bundle|lot of|joblot|job lot|bulk|wholesale|x\s?\d{2,}|\d+\s?pack|pack of)\b/i
 // Words too common to prove a listing is the right product.
 const STOPWORDS = new Set(['the', 'and', 'with', 'for', 'new', 'used', 'genuine', 'original', 'official', 'edition', 'version'])
 // How far from a caller's price hint a listing can sit and still be the same product.
 const PRICE_BAND = { low: 0.3, high: 3.5 }
+// A listing at a small fraction of the market price is almost never the product at a
+// bargain - it is a part, a case, a photo, an empty box or a scam. Real underpriced
+// listings cluster 20-50% below market. Anything cheaper than this is excluded from the
+// candidates and counted, rather than shown as an 80%-off find nobody can actually buy.
+const TOO_CHEAP_RATIO = 0.35
 // "Well below the market" for the underpriced scan. Tight enough that noise does not qualify.
 const UNDERPRICED_RATIO = 0.7
 
@@ -231,8 +236,10 @@ Deno.serve(async req => {
         return json({ ok: true, engine: ENGINE, query: q, enough_for_a_market_view: false, candidates: [], note: `Only ${s.used_for_stats} comparable listings — not enough to tell what is underpriced.` })
       }
       const cut = s.median * UNDERPRICED_RATIO
+      const floor = s.median * TOO_CHEAP_RATIO
+      const tooCheap = kept.filter(i => i.price < floor).length
       const candidates = kept
-        .filter(i => i.price <= cut)
+        .filter(i => i.price <= cut && i.price >= floor)
         .sort((a, b) => a.price - b.price)
         .slice(0, 10)
         .map(i => ({
@@ -244,7 +251,9 @@ Deno.serve(async req => {
         ok: true, engine: ENGINE, marketplace: MARKETPLACE, query: q, basis: 'active',
         note: 'Candidates only. A low price usually means a reason - condition, missing parts, a bad seller or the wrong item. Each one still needs Analyse.',
         median: s.median, low: s.low, high: s.high, listings: s.listings,
-        returned_by_ebay: items.length, dropped_as_irrelevant: dropped, candidates
+        returned_by_ebay: items.length,
+        dropped_as_irrelevant: { ...dropped, implausibly_cheap: tooCheap },
+        candidates
       })
     }
 
