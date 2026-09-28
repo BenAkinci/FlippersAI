@@ -16,15 +16,18 @@
 // belonging to an eBay user. If that ever changes, the erasure must be implemented here.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
-const ENGINE = 'ebay-account-deletion-v1'
+const ENGINE = 'ebay-account-deletion-v2'
+// The hash must use the endpoint EXACTLY as registered with eBay. Inside the Edge runtime
+// req.url is the internal address (http, no /functions/v1), so deriving it from the request
+// produces a hash eBay will always reject. Hard-code the public URL; override with
+// EBAY_DELETION_ENDPOINT if it ever moves.
+const PUBLIC_ENDPOINT = 'https://msmpigerejpxepkylkxz.supabase.co/functions/v1/ebay-account-deletion'
 
 const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
 
 Deno.serve(async req => {
   const url = new URL(req.url)
-  // The endpoint URL must be hashed exactly as it is registered with eBay, so it is
-  // configurable rather than guessed from the request.
-  const endpoint = (Deno.env.get('EBAY_DELETION_ENDPOINT') || `${url.origin}${url.pathname}`).trim()
+  const endpoint = (Deno.env.get('EBAY_DELETION_ENDPOINT') || PUBLIC_ENDPOINT).trim()
   const verificationToken = Deno.env.get('EBAY_VERIFICATION_TOKEN')?.trim()
 
   if (req.method === 'GET') {
