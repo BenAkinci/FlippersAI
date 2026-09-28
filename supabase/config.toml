@@ -51,3 +51,11 @@ verify_jwt = true
 
 [functions.workflow-state]
 verify_jwt = true
+
+[functions.ebay-comps]
+verify_jwt = true
+
+# Public on purpose: eBay calls this unauthenticated to verify the endpoint and to send
+# account-deletion notices. Their keyset stays disabled without it.
+[functions.ebay-account-deletion]
+verify_jwt = false
