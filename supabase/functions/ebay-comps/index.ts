@@ -24,7 +24,7 @@
 // rather than silent.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
-const ENGINE = 'ebay-comps-v4'
+const ENGINE = 'ebay-comps-v5'
 const OAUTH = 'https://api.ebay.com/identity/v1/oauth2/token'
 const SEARCH = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 const MARKETPLACE = 'EBAY_AU'
@@ -54,6 +54,28 @@ const FAULTY_WORDS = /\b(faulty|broken|not working|doesn'?t work|does not work|n
 const TOO_CHEAP_RATIO = 0.35
 // "Well below the market" for the underpriced scan. Tight enough that noise does not qualify.
 const UNDERPRICED_RATIO = 0.7
+
+// eBay allows this application a few thousand calls a day in total, shared by every user, so
+// one person cannot be allowed to spend it all. Generous for real hunting, fatal for a script.
+// Fails OPEN: a broken counter must not break sourcing for someone who is paying.
+const DAILY_LOOKUPS = 80
+async function claimUsage(req: Request) {
+  const base = Deno.env.get('SUPABASE_URL') || 'https://msmpigerejpxepkylkxz.supabase.co'
+  try {
+    const r = await fetch(`${base}/rest/v1/rpc/claim_usage`, {
+      method: 'POST',
+      headers: {
+        Authorization: req.headers.get('authorization') || '',
+        apikey: req.headers.get('apikey') || '',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ p_kind: 'ebay_lookup', p_limit: DAILY_LOOKUPS })
+    })
+    if (!r.ok) return { allowed: true }
+    const j = await r.json()
+    return j && typeof j === 'object' ? j : { allowed: true }
+  } catch { return { allowed: true } }
+}
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -221,6 +243,11 @@ Deno.serve(async req => {
     }
 
     if (!q) return json({ ok: false, error: 'Tell me what to look up (query).' }, 400)
+
+    const quota = await claimUsage(req)
+    if (quota && quota.allowed === false && quota.reason === 'daily_limit') {
+      return json({ ok: false, error: `You have used all ${DAILY_LOOKUPS} eBay lookups for today. The allowance resets at midnight Melbourne time.`, error_code: 'DAILY_LIMIT_REACHED', used: quota.used, limit: quota.limit, resets_at: quota.resets_at }, 429)
+    }
 
     const priceHint = Number.isFinite(Number(body.price_hint)) && Number(body.price_hint) > 0 ? Number(body.price_hint) : null
 

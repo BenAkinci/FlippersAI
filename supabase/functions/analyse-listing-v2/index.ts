@@ -6,6 +6,21 @@ const num=(v:any)=>{if(v===null||v===undefined||v==='')return null;const n=Numbe
 const clean=(v:any,max=900)=>String(v??'').trim().slice(0,max)
 const clamp=(v:number,min=0,max=100)=>Math.max(min,Math.min(max,v))
 
+// Every analysis spends real money on an API key Ben pays for, so each signed-in user gets a
+// generous daily allowance rather than an unlimited one. 25 full analyses a day is far more
+// than anyone actually flips; it exists to stop one stranger running thousands overnight.
+// Fails OPEN: if the counter itself is unavailable the analysis still runs, because breaking
+// the product to protect the budget is the wrong trade for a paying user.
+const DAILY_ANALYSES = 25
+async function claimUsage(base:string,headers:Record<string,string>,kind:string,limit:number){
+  try{
+    const r=await fetch(`${base}/rest/v1/rpc/claim_usage`,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({p_kind:kind,p_limit:limit})})
+    if(!r.ok)return{allowed:true,unavailable:true}
+    const j=await r.json()
+    return j&&typeof j==='object'?j:{allowed:true,unavailable:true}
+  }catch{return{allowed:true,unavailable:true}}
+}
+
 async function invoke(base:string,slug:string,headers:Record<string,string>,body:any,timeoutMs:number){const c=new AbortController();const t=setTimeout(()=>c.abort(),timeoutMs);try{const r=await fetch(`${base}/functions/v1/${slug}`,{method:'POST',headers,body:JSON.stringify(body),signal:c.signal});const raw=await r.text();let p:any={};try{p=raw?JSON.parse(raw):{}}catch{p={error:raw}};return{response:r,payload:p}}finally{clearTimeout(t)}}
 async function toAud(amount:number,currency:string){const c=currency.toUpperCase();if(c==='AUD')return{aud:amount,rate:1};if(!['USD','GBP'].includes(c))throw new Error(`Unsupported currency ${c}`);const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),5000);try{const r=await fetch(`https://api.frankfurter.app/latest?from=${c}&to=AUD`,{signal:ctl.signal});if(!r.ok)throw new Error(`FX ${r.status}`);const j=await r.json();const rate=num(j?.rates?.AUD);if(!rate)throw new Error('FX unavailable');return{aud:+(amount*rate).toFixed(2),rate}}finally{clearTimeout(t)}}
 function shippingFromText(text:string,currency='AUD'){const s=String(text||'');if(/\bfree\s+(shipping|postage|delivery)\b/i.test(s)||/\b(pickup|pick-up|collection)\s+only\b/i.test(s))return{amount:0,currency};const pats=[/(?:\+\s*)?(A\$|AUD\s*\$?|US\$|USD\s*\$?|£|GBP\s*|\$)\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(shipping|postage|delivery)\b/i,/\b(shipping|postage|delivery)\s*(?:cost)?\s*[:\-]?\s*(A\$|AUD\s*\$?|US\$|USD\s*\$?|£|GBP\s*|\$)?\s*([0-9]+(?:\.[0-9]{1,2})?)/i];for(let i=0;i<pats.length;i++){const m=s.match(pats[i]);if(!m)continue;const token=(i===0?m[1]:m[2])||'';const amount=num(i===0?m[2]:m[3]);if(amount===null)continue;let cur=currency;if(/US\$|USD/i.test(token))cur='USD';else if(/£|GBP/i.test(token))cur='GBP';else if(/A\$|AUD/i.test(token))cur='AUD';return{amount,currency:cur}}return null}
@@ -100,6 +115,12 @@ Deno.serve(async req=>{
  const diagnosticId=crypto.randomUUID(),started=Date.now()
  try{
   const body=await req.json();const base=Deno.env.get('SUPABASE_URL')||'https://msmpigerejpxepkylkxz.supabase.co';const headers={'Authorization':req.headers.get('authorization')||'','apikey':req.headers.get('apikey')||'','Content-Type':'application/json'}
+  const quota=await claimUsage(base,headers,'analyse',DAILY_ANALYSES)
+  if(quota&&quota.allowed===false&&quota.reason==='daily_limit')return new Response(JSON.stringify({
+    error:`You have used all ${DAILY_ANALYSES} analyses for today. The allowance resets at midnight Melbourne time.`,
+    error_code:'DAILY_LIMIT_REACHED',used:quota.used,limit:quota.limit,resets_at:quota.resets_at,retryable:false
+  }),{status:429,headers:cors})
+
   let p=body?.platform_fields&&typeof body.platform_fields==='object'?body.platform_fields:{};const u=body?.user_overrides&&typeof body.user_overrides==='object'?body.user_overrides:{}
   const inputPrice=num(u.asking_price)??num(p.asking_price),inputCurrency=String(u.currency||p.currency||'AUD').toUpperCase(),priceVerified=u.asking_price!==undefined||p.asking_price_verified===true||(num(p.asking_price_confidence)||0)>=.9
   const textShip=shippingFromText(String(body?.listing_text||''),inputCurrency),inputShipping=num(u.shipping_cost)??num(p.acquisition_shipping_cost)??num(p.shipping_cost)??textShip?.amount??null,shippingCurrency=String(u.shipping_currency||p.shipping_currency||textShip?.currency||inputCurrency).toUpperCase()
