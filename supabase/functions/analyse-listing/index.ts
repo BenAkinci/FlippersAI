@@ -76,12 +76,20 @@ Deno.serve(async(req)=>{
     if(!key)return new Response(JSON.stringify({error:'AI service is not configured'}),{status:503,headers:cors})
     const b=await req.json()
     const listingUrl=clean(b.listing_url,4000),listingText=clean(b.listing_text,45000),platformFields=clean(JSON.stringify(b.platform_fields||{}),12000),sellerUpdate=clean(b.seller_update,12000),prior=clean(b.prior_analysis_summary,12000),portfolio=clean(JSON.stringify(b.portfolio_context||{}),18000)
+    // Live eBay AU prices measured by the ebay-comps function - real listings with real URLs,
+    // not something a model recalled. Treated as the strongest evidence available, but still
+    // ASKING prices: the prompt below says so, because active listings sit above sale prices.
+    const ebay=b.market_evidence&&typeof b.market_evidence==='object'?b.market_evidence:null
     const bankroll=Number(b.bankroll||0),riskProfile=String(b.risk_profile||'conservative'),reservePct=Number(b.reserve_percent??30),maxExposurePct=Number(b.max_exposure_percent??20),community=b.community_context&&typeof b.community_context==='object'?b.community_context:null
     const images=Array.isArray(b.images)?b.images.filter((x:any)=>typeof x==='string'&&/^data:image\/(jpeg|jpg|png|webp);base64,/i.test(x)).slice(0,6):[]
     if(!listingUrl&&!listingText&&!images.length)return new Response(JSON.stringify({error:'Provide a listing URL, listing text, or at least one photo'}),{status:400,headers:cors})
 
     const client=new OpenAI({apiKey:key,maxRetries:0,timeout:70000})
-    const researchContext=`URL: ${listingUrl||'(none)'}\nPLATFORM FIELDS: ${platformFields||'(none)'}\nVISIBLE TEXT: ${listingText||'(none)'}\nSELLER UPDATE: ${sellerUpdate||'(none)'}`
+    const ebayBlock=ebay&&ebay.enough_for_a_market_view!==false&&ebay.median!==null&&ebay.median!==undefined
+      ?`MEASURED eBay AUSTRALIA MARKET (live, ${ebay.listings??ebay.used_for_stats??'?'} comparable listings for "${clean(ebay.query,160)}"): median A$${ebay.median}, typical range A$${ebay.low}-A$${ebay.high}, cheapest A$${ebay.min}, dearest A$${ebay.max}.${ebay.by_condition?` Condition split: ${clean(JSON.stringify(ebay.by_condition),300)}.`:''}${Array.isArray(ebay.cheapest)&&ebay.cheapest.length?` Example live listings: ${clean(ebay.cheapest.slice(0,5).map((c:any)=>`${c.title} A$${c.price_aud}${c.condition?` (${c.condition})`:''} ${c.url}`).join(' | '),2200)}`:''} These are ACTIVE ASKING prices, not sold prices. Accessories, bundles, parts and faulty units were already filtered out.`
+      :ebay?`MEASURED eBay AUSTRALIA MARKET: not enough comparable listings to establish a market for this item.`:''
+
+    const researchContext=`URL: ${listingUrl||'(none)'}\nPLATFORM FIELDS: ${platformFields||'(none)'}\nVISIBLE TEXT: ${listingText||'(none)'}\nSELLER UPDATE: ${sellerUpdate||'(none)'}\n${ebayBlock}`
     let research='',researchOk=true,researchError=''
     try{research=await researchMarket(client,researchContext);if(!research)throw new Error('No research packet returned')}
     catch(err){researchOk=false;researchError=err instanceof Error?err.message:String(err);research='LIVE MARKET/COMMUNITY RESEARCH WAS UNAVAILABLE FOR THIS RUN. Do not invent market comps or category conventions.'}
@@ -99,6 +107,7 @@ PRIOR ANALYSIS: ${prior||'(none)'}
 COMMUNITY/INTEL: ${community?JSON.stringify(community).slice(0,8000):'(none)'}
 PHOTOS AVAILABLE: ${images.length}
 LIVE MARKET/COMMUNITY RESEARCH AVAILABLE: ${researchOk?'YES':'NO'}
+${ebayBlock||'MEASURED eBay AUSTRALIA MARKET: not run for this item.'}
 RESEARCH PACKET:\n${research}
 
 Mandatory decision order: IDENTITY → CATEGORY NORMS → AUTHENTICITY → CONDITION/COMPLETENESS → RESALE EVIDENCE → PROFITABILITY → SUCCESS POTENTIAL → OVERALL SCORE.
@@ -116,7 +125,8 @@ Mandatory decision order: IDENTITY → CATEGORY NORMS → AUTHENTICITY → CONDI
 12. expected_profit and ROI must include asking price + selling costs + prep costs where known.
 13. max_buy should be the maximum acquisition price that still meets a conservative target margin given evidence, category-specific value penalties and risk; recommended_offer should be below/equal max_buy.
 14. Be concise and action-first. VERIFY FIRST should ask only for genuinely missing evidence that FlippersAI cannot obtain itself.
-15. RETAIL/STORE PURCHASES: if the listing URL or text shows the item is sold new by a retailer or store (e.g. Amazon, Big W, JB Hi-Fi, Kmart, Target, Harvey Norman, Officeworks, EB Games, Myer, Catch, a brand's own store) rather than a private seller, there is no seller to message or haggle with and the item arrives new/sealed from the retailer. Then: seller_message is an empty string; questions_to_ask is empty unless something genuinely must be checked on the store page (stock, exact variant, seller is the retailer not a third-party marketplace seller); do not ask for seller photos, receipts or proof of purchase; the next_action/action_summary is to buy at the store price if it is at or under max_buy (or wait for a lower price), and recommended_offer equals the store price when that is at or under max_buy. Marketplace third-party sellers on Amazon/Catch/eBay are NOT retail for this rule.`
+15. RETAIL/STORE PURCHASES: if the listing URL or text shows the item is sold new by a retailer or store (e.g. Amazon, Big W, JB Hi-Fi, Kmart, Target, Harvey Norman, Officeworks, EB Games, Myer, Catch, a brand's own store) rather than a private seller, there is no seller to message or haggle with and the item arrives new/sealed from the retailer. Then: seller_message is an empty string; questions_to_ask is empty unless something genuinely must be checked on the store page (stock, exact variant, seller is the retailer not a third-party marketplace seller); do not ask for seller photos, receipts or proof of purchase; the next_action/action_summary is to buy at the store price if it is at or under max_buy (or wait for a lower price), and recommended_offer equals the store price when that is at or under max_buy. Marketplace third-party sellers on Amazon/Catch/eBay are NOT retail for this rule.
+16. MEASURED eBay AUSTRALIA MARKET, when present, was counted by FlippersAI from real live listings rather than recalled or searched for, so it outranks any figure in the research packet that merely asserts a price. Use it as the anchor for resale_low/mid/high unless the research packet has actual SOLD comps for this exact item, which outrank it. Because they are asking prices, set resale_mid at or below the measured median for an equivalent-condition item, and lower again for worse condition, missing accessories or a slower category. Cite the example listings in the evidence array as evidence_type active_listing, evidence_class verified, marketplace eBay, sold false, using their real URLs. Never present them as sold. If the measured market says there were not enough comparable listings, say so plainly and do not substitute a guess dressed as a measurement.`
 
     const content:any[]=[{type:'input_text',text:prompt}]
     for(const img of images)content.push({type:'input_image',image_url:img,detail:'auto'})

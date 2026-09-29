@@ -10,6 +10,28 @@ async function invoke(base:string,slug:string,headers:Record<string,string>,body
 async function toAud(amount:number,currency:string){const c=currency.toUpperCase();if(c==='AUD')return{aud:amount,rate:1};if(!['USD','GBP'].includes(c))throw new Error(`Unsupported currency ${c}`);const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),5000);try{const r=await fetch(`https://api.frankfurter.app/latest?from=${c}&to=AUD`,{signal:ctl.signal});if(!r.ok)throw new Error(`FX ${r.status}`);const j=await r.json();const rate=num(j?.rates?.AUD);if(!rate)throw new Error('FX unavailable');return{aud:+(amount*rate).toFixed(2),rate}}finally{clearTimeout(t)}}
 function shippingFromText(text:string,currency='AUD'){const s=String(text||'');if(/\bfree\s+(shipping|postage|delivery)\b/i.test(s)||/\b(pickup|pick-up|collection)\s+only\b/i.test(s))return{amount:0,currency};const pats=[/(?:\+\s*)?(A\$|AUD\s*\$?|US\$|USD\s*\$?|£|GBP\s*|\$)\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(shipping|postage|delivery)\b/i,/\b(shipping|postage|delivery)\s*(?:cost)?\s*[:\-]?\s*(A\$|AUD\s*\$?|US\$|USD\s*\$?|£|GBP\s*|\$)?\s*([0-9]+(?:\.[0-9]{1,2})?)/i];for(let i=0;i<pats.length;i++){const m=s.match(pats[i]);if(!m)continue;const token=(i===0?m[1]:m[2])||'';const amount=num(i===0?m[2]:m[3]);if(amount===null)continue;let cur=currency;if(/US\$|USD/i.test(token))cur='USD';else if(/£|GBP/i.test(token))cur='GBP';else if(/A\$|AUD/i.test(token))cur='AUD';return{amount,currency:cur}}return null}
 
+// Measure the real eBay AU market before the decision engine runs, so the analysis is
+// anchored to counted live listings rather than to whatever a model remembers. Best-effort:
+// if eBay is slow, unconfigured or has too few comparable listings, the analysis proceeds
+// exactly as before rather than failing.
+function compsQuery(p:any){
+  const parts=[clean(p.brand,60),clean(p.model,80),clean(p.variant,80)].filter(Boolean)
+  const built=parts.join(' ').trim()
+  // Brand+model beats a seller's title ("Nike Men's Black Trainers" names no model at all),
+  // but a title is better than nothing.
+  if(built.length>=6)return built.slice(0,120)
+  return clean(p.listing_title,120)
+}
+async function ebayMarket(base:string,headers:Record<string,string>,p:any,priceHint:number|null){
+  const query=compsQuery(p)
+  if(!query||query.length<3)return null
+  try{
+    const {response,payload}=await invoke(base,'ebay-comps',headers,{mode:'comps',query,price_hint:priceHint??undefined},9000)
+    if(!response.ok||payload?.ok===false){console.error('ebay_comps_unavailable',{status:response.status,detail:clean(payload?.error,200)});return null}
+    return payload
+  }catch(e){console.error('ebay_comps_failed',{detail:clean(e instanceof Error?e.message:String(e),200)});return null}
+}
+
 const fbSchema={type:'object',additionalProperties:false,properties:{resale_low:{type:'number'},resale_mid:{type:'number'},resale_high:{type:'number'},quick_sale_value:{type:'number'},estimated_selling_costs:{type:'number'},estimated_prep_cost:{type:'number'},valuation_confidence:{type:'number',minimum:10,maximum:60},basis:{type:'string'},evidence_summary:{type:'string'},evidence:{type:'array',items:{type:'object',additionalProperties:false,properties:{source_title:{type:'string'},source_url:{type:'string'},price_aud:{type:['number','null']},sold:{type:['boolean','null']},match_quality:{type:'string'}},required:['source_title','source_url','price_aud','sold','match_quality']}}},required:['resale_low','resale_mid','resale_high','quick_sale_value','estimated_selling_costs','estimated_prep_cost','valuation_confidence','basis','evidence_summary','evidence']}
 
 async function webFallback(body:any,seed:any){const key=Deno.env.get('OPENAI_API_KEY');if(!key)return null;const client=new OpenAI({apiKey:key,maxRetries:0,timeout:30000});const ctx={title:seed.identified_name,brand:seed.brand,model:seed.model,variant:seed.variant,condition:seed.condition_assessment,listing_text:clean(body?.listing_text,12000),platform_fields:body?.platform_fields||{}};const prompt=`Estimate the CURRENT Australian resale value for this exact item. Use web search. Prefer exact/strong SOLD comps, then strong active comps, then retail/specialist references. Return AUD low/mid/high, quick-sale value, realistic selling costs, prep cost, confidence, concise basis, concise evidence summary, and only real sources actually found. Never invent a URL or sold status. If evidence is weak, widen the range and lower confidence. Context: ${JSON.stringify(ctx).slice(0,16000)}`;try{const r=await client.responses.create({model:'gpt-5-mini',tools:[{type:'web_search',user_location:{type:'approximate',country:'AU',city:'Melbourne',region:'Victoria',timezone:'Australia/Melbourne'}}],reasoning:{effort:'minimal'},input:[{role:'user',content:[{type:'input_text',text:prompt}]}],text:{format:{type:'json_schema',name:'fast_market_fallback_v1',strict:true,schema:fbSchema}},store:false},{timeout:25000,maxRetries:0});return r.output_text?JSON.parse(r.output_text):null}catch(e){console.error('fast_fallback_failed',{detail:clean(e instanceof Error?e.message:String(e),400)});return null}}
@@ -59,7 +81,8 @@ Deno.serve(async req=>{
   if(inputPrice!==null&&priceVerified){const fx=await toAud(inputPrice,inputCurrency);askAud=fx.aud;fxRate=fx.rate}
   if(inputShipping!==null){const fx=await toAud(inputShipping,shippingCurrency);shipAud=fx.aud;shipFx=fx.rate}
   p={...p,asking_price:askAud,currency:'AUD',asking_price_authoritative:askAud!==null,original_listing_price:inputPrice,original_listing_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_cost:shipAud,original_shipping_cost:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx,landed_acquisition_cost:askAud!==null&&shipAud!==null?+(askAud+shipAud).toFixed(2):null}
-  const forwarded=structuredClone(body);forwarded.platform_fields=p;forwarded.user_overrides={...u,asking_price:askAud,currency:'AUD',shipping_cost:shipAud,shipping_currency:'AUD'};forwarded.seller_update=[askAud!==null?`ASKING PRICE LOCK: AUD ${askAud.toFixed(2)}.`:'ASKING PRICE NOT VERIFIED.',shipAud!==null?`ACQUISITION SHIPPING LOCK: AUD ${shipAud.toFixed(2)}.`:'ACQUISITION SHIPPING NOT VERIFIED.',String(body?.seller_update||'')].filter(Boolean).join('\n\n')
+  const ebay=await ebayMarket(base,headers,p,askAud)
+  const forwarded=structuredClone(body);forwarded.platform_fields=p;forwarded.market_evidence=ebay;forwarded.user_overrides={...u,asking_price:askAud,currency:'AUD',shipping_cost:shipAud,shipping_currency:'AUD'};forwarded.seller_update=[askAud!==null?`ASKING PRICE LOCK: AUD ${askAud.toFixed(2)}.`:'ASKING PRICE NOT VERIFIED.',shipAud!==null?`ACQUISITION SHIPPING LOCK: AUD ${shipAud.toFixed(2)}.`:'ACQUISITION SHIPPING NOT VERIFIED.',String(body?.seller_update||'')].filter(Boolean).join('\n\n')
 
   let payload:any=null,analysis:any=null,upstreamTimedOut=false
   try{const up=await invoke(base,'analyse-listing',headers,forwarded,45000);if(up.response.ok&&!up.payload?.error){payload=up.payload;analysis=up.payload.analysis||null}else console.error('upstream_non_ok',{status:up.response.status,error:clean(up.payload?.error,300)})}catch(e){upstreamTimedOut=e instanceof DOMException&&e.name==='AbortError';console.error('upstream_timeout_or_error',{timeout:upstreamTimedOut,detail:clean(e instanceof Error?e.message:String(e),300)})}
@@ -72,7 +95,7 @@ Deno.serve(async req=>{
   if(shipAud===null){analysis.expected_profit=null;analysis.expected_roi_percent=null;analysis.max_buy=null;analysis.recommended_offer=null;analysis.break_even_sale_price=null}
   if(usedFallback&&analysis.expected_profit!==null){if(analysis.expected_profit<0)analysis.recommendation='skip';else if(analysis.valuation_confidence<50)analysis.recommendation='negotiate'}
   recomputeOpportunityScores(analysis)
-  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v12-scored-fallback',valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
+  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v13-ebay-anchored',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
   return new Response(JSON.stringify(out),{headers:cors})
  }catch(e){const detail=clean(e instanceof Error?e.message:String(e),500);console.error('analyse_v2_failed',{diagnosticId,detail});return new Response(JSON.stringify({error:'FlippersAI could not complete this analysis.',error_code:'ANALYSIS_WRAPPER_FAILED',diagnostic_id:diagnosticId,detail,retryable:true}),{status:503,headers:cors})}
 })
