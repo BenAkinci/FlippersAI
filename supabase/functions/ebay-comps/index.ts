@@ -24,7 +24,7 @@
 // rather than silent.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
-const ENGINE = 'ebay-comps-v3'
+const ENGINE = 'ebay-comps-v4'
 const OAUTH = 'https://api.ebay.com/identity/v1/oauth2/token'
 const SEARCH = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 const MARKETPLACE = 'EBAY_AU'
@@ -41,6 +41,12 @@ const BUNDLE_WORDS = /\b(bundle|lot of|joblot|job lot|bulk|wholesale|x\s?\d{2,}|
 const STOPWORDS = new Set(['the', 'and', 'with', 'for', 'new', 'used', 'genuine', 'original', 'official', 'edition', 'version'])
 // How far from a caller's price hint a listing can sit and still be the same product.
 const PRICE_BAND = { low: 0.3, high: 3.5 }
+// Broken items. eBay's own condition value is "For parts or not working", but plenty of
+// sellers only say it in the title. A faulty unit is not comparable to a median built from
+// working ones, so calling it "58% below market" is a false bargain - the discount IS the
+// fault. Excluded from both the median and the candidates.
+const FAULTY_CONDITION = /for parts|not working/i
+const FAULTY_WORDS = /\b(faulty|broken|not working|doesn'?t work|does not work|no power|won'?t (?:turn on|charge|power)|spares? or repair|for parts|parts only|as[- ]is|damaged|cracked|water damage|smashed|dead|read description|salvage)\b/i
 // A listing at a small fraction of the market price is almost never the product at a
 // bargain - it is a part, a case, a photo, an empty box or a scam. Real underpriced
 // listings cluster 20-50% below market. Anything cheaper than this is excluded from the
@@ -144,13 +150,16 @@ function relevant(items: Item[], q: string, priceHint: number | null) {
   const asked = q.toLowerCase()
   // If the user is genuinely shopping for a filter or a battery, do not strip them out.
   const wantsPart = PART_WORDS.test(asked)
-  const dropped = { missing_query_words: 0, accessory_or_compatible: 0, bundle_or_lot: 0, price_implausible: 0 }
+  // If the user is deliberately hunting broken units to repair, respect that.
+  const wantsFaulty = FAULTY_WORDS.test(asked)
+  const dropped = { missing_query_words: 0, accessory_or_compatible: 0, bundle_or_lot: 0, faulty_or_for_parts: 0, price_implausible: 0 }
   const kept = items.filter(i => {
     const t = i.title.toLowerCase()
     if (tokens.length && !tokens.every(tok => t.includes(tok))) { dropped.missing_query_words++; return false }
     if (!wantsPart && COMPATIBILITY.test(t)) { dropped.accessory_or_compatible++; return false }
     if (!wantsPart && PART_WORDS.test(t)) { dropped.accessory_or_compatible++; return false }
     if (BUNDLE_WORDS.test(t)) { dropped.bundle_or_lot++; return false }
+    if (!wantsFaulty && (FAULTY_WORDS.test(t) || FAULTY_CONDITION.test(i.condition || ''))) { dropped.faulty_or_for_parts++; return false }
     if (priceHint !== null && (i.price < priceHint * PRICE_BAND.low || i.price > priceHint * PRICE_BAND.high)) { dropped.price_implausible++; return false }
     return true
   })
