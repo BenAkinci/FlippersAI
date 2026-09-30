@@ -164,6 +164,14 @@ Deno.serve(async req=>{
   // NEGOTIATE is only honest when the gap is closeable. When the evidence says the item is worth
   // far less than the ask, telling a beginner to go and haggle sends them into a negotiation they
   // cannot win and should not want to win. Below the closeable gap, the answer is to walk.
+  // A valuation resting only on active asking prices is not strong enough to tell anyone to buy.
+  // Today's evidence: sold comps put a used Switch OLED at A$185 while live asks sat at A$348-380.
+  // Acting on asks is how a user buys a loss-maker, so BUY needs at least one sold comp behind it.
+  if(num(analysis.resale_mid)!==null&&(num(analysis.resale_evidence_count)||0)===0&&['strong_buy','buy'].includes(String(analysis.recommendation||''))){
+   analysis.recommendation='negotiate'
+   analysis.assumptions=['This valuation rests on what sellers are ASKING, not on completed sales - no sold comps were found for this item. Asking prices run well above sale prices, so treat the resale figure as a ceiling and negotiate against it rather than paying up to it.',...(Array.isArray(analysis.assumptions)?analysis.assumptions:[])]
+   if(num(analysis.valuation_confidence)!==null&&num(analysis.valuation_confidence)>50)analysis.valuation_confidence=50
+  }
   const CLOSEABLE_GAP = 1.35
   const finalProfit=num(analysis.expected_profit),finalMaxBuy=num(analysis.max_buy)
   if(num(analysis.resale_mid)!==null&&finalProfit!==null&&finalProfit<=0){
@@ -175,7 +183,7 @@ Deno.serve(async req=>{
    }else if(['strong_buy','buy'].includes(analysis.recommendation))analysis.recommendation='negotiate'
   }
   recomputeOpportunityScores(analysis)
-  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v15-ebay-anchored',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
+  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v16-ebay-anchored',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
   return new Response(JSON.stringify(out),{headers:cors})
  }catch(e){const detail=clean(e instanceof Error?e.message:String(e),500);console.error('analyse_v2_failed',{diagnosticId,detail});return new Response(JSON.stringify({error:'FlippersAI could not complete this analysis.',error_code:'ANALYSIS_WRAPPER_FAILED',diagnostic_id:diagnosticId,detail,retryable:true}),{status:503,headers:cors})}
 })
