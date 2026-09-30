@@ -58,7 +58,7 @@ Return a compact factual packet in plain text with two sections: MARKET EVIDENCE
 LISTING CONTEXT:\n${ctx}`
   const started=Date.now()
   try{
-    const r=await client.responses.create({model:'gpt-5-mini',tools:[{type:'web_search',user_location:{type:'approximate',country:'AU',city:'Melbourne',region:'Victoria',timezone:'Australia/Melbourne'}}],input:[{role:'user',content:[{type:'input_text',text:prompt}]}],store:false},{timeout:45000,maxRetries:0})
+    const r=await client.responses.create({model:'gpt-5-mini',tools:[{type:'web_search',user_location:{type:'approximate',country:'AU',city:'Melbourne',region:'Victoria',timezone:'Australia/Melbourne'}}],input:[{role:'user',content:[{type:'input_text',text:prompt}]}],store:false},{timeout:30000,maxRetries:0})
     console.log('analyse_research_complete',{duration_ms:Date.now()-started})
     return clean(r.output_text,36000)
   }catch(err){
