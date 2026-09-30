@@ -58,7 +58,7 @@ Return a compact factual packet in plain text with two sections: MARKET EVIDENCE
 LISTING CONTEXT:\n${ctx}`
   const started=Date.now()
   try{
-    const r=await client.responses.create({model:'gpt-5-mini',tools:[{type:'web_search',user_location:{type:'approximate',country:'AU',city:'Melbourne',region:'Victoria',timezone:'Australia/Melbourne'}}],input:[{role:'user',content:[{type:'input_text',text:prompt}]}],store:false},{timeout:30000,maxRetries:0})
+    const r=await client.responses.create({model:'gpt-5-mini',reasoning:{effort:'low'},tools:[{type:'web_search',user_location:{type:'approximate',country:'AU',city:'Melbourne',region:'Victoria',timezone:'Australia/Melbourne'}}],input:[{role:'user',content:[{type:'input_text',text:prompt}]}],store:false},{timeout:25000,maxRetries:0})
     console.log('analyse_research_complete',{duration_ms:Date.now()-started})
     return clean(r.output_text,36000)
   }catch(err){
@@ -67,6 +67,10 @@ LISTING CONTEXT:\n${ctx}`
   }
 }
 
+// Stage budget: research 25s + decision 50s must fit inside the caller's 80s budget, or every
+// analysis lands on the wrapper's fallback and no researched valuation, authenticity read or
+// seller question is ever produced. Both stages run at low reasoning effort for the same reason;
+// the measured eBay market supplied by the caller carries the evidence the research used to hunt for.
 Deno.serve(async(req)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:cors})
   if(req.method!=='POST')return new Response(JSON.stringify({error:'POST required'}),{status:405,headers:cors})
@@ -84,7 +88,7 @@ Deno.serve(async(req)=>{
     const images=Array.isArray(b.images)?b.images.filter((x:any)=>typeof x==='string'&&/^data:image\/(jpeg|jpg|png|webp);base64,/i.test(x)).slice(0,6):[]
     if(!listingUrl&&!listingText&&!images.length)return new Response(JSON.stringify({error:'Provide a listing URL, listing text, or at least one photo'}),{status:400,headers:cors})
 
-    const client=new OpenAI({apiKey:key,maxRetries:0,timeout:70000})
+    const client=new OpenAI({apiKey:key,maxRetries:0,timeout:80000})
     const ebayBlock=ebay&&ebay.enough_for_a_market_view!==false&&ebay.median!==null&&ebay.median!==undefined
       ?`MEASURED eBay AUSTRALIA MARKET (live, ${ebay.listings??ebay.used_for_stats??'?'} comparable listings for "${clean(ebay.query,160)}"): median A$${ebay.median}, typical range A$${ebay.low}-A$${ebay.high}, cheapest A$${ebay.min}, dearest A$${ebay.max}.${ebay.by_condition?` Condition split: ${clean(JSON.stringify(ebay.by_condition),300)}.`:''}${Array.isArray(ebay.cheapest)&&ebay.cheapest.length?` Example live listings: ${clean(ebay.cheapest.slice(0,5).map((c:any)=>`${c.title} A$${c.price_aud}${c.condition?` (${c.condition})`:''} ${c.url}`).join(' | '),2200)}`:''} These are ACTIVE ASKING prices, not sold prices. Accessories, bundles, parts and faulty units were already filtered out.`
       :ebay?`MEASURED eBay AUSTRALIA MARKET: not enough comparable listings to establish a market for this item.`:''
@@ -133,7 +137,7 @@ Mandatory decision order: IDENTITY → CATEGORY NORMS → AUTHENTICITY → CONDI
     let response
     const decisionStarted=Date.now()
     try{
-      response=await client.responses.create({model:'gpt-5-mini',input:[{role:'user',content}],text:{format:{type:'json_schema',name:'resale_analysis_v9_category_aware',strict:true,schema}},store:false},{timeout:65000,maxRetries:0})
+      response=await client.responses.create({model:'gpt-5-mini',reasoning:{effort:'low'},input:[{role:'user',content}],text:{format:{type:'json_schema',name:'resale_analysis_v9_category_aware',strict:true,schema}},store:false},{timeout:50000,maxRetries:0})
       console.log('analyse_decision_complete',{duration_ms:Date.now()-decisionStarted,total_ms:Date.now()-requestStarted,research_available:researchOk})
     }catch(err){
       const message=err instanceof Error?err.message:String(err)

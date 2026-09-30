@@ -132,7 +132,7 @@ Deno.serve(async req=>{
   const forwarded=structuredClone(body);forwarded.platform_fields=p;forwarded.market_evidence=ebay;forwarded.user_overrides={...u,asking_price:askAud,currency:'AUD',shipping_cost:shipAud,shipping_currency:'AUD'};forwarded.seller_update=[askAud!==null?`ASKING PRICE LOCK: AUD ${askAud.toFixed(2)}.`:'ASKING PRICE NOT VERIFIED.',shipAud!==null?`ACQUISITION SHIPPING LOCK: AUD ${shipAud.toFixed(2)}.`:'ACQUISITION SHIPPING NOT VERIFIED.',String(body?.seller_update||'')].filter(Boolean).join('\n\n')
 
   let payload:any=null,analysis:any=null,upstreamTimedOut=false
-  try{const up=await invoke(base,'analyse-listing',headers,forwarded,58000);if(up.response.ok&&!up.payload?.error){payload=up.payload;analysis=up.payload.analysis||null}else console.error('upstream_non_ok',{status:up.response.status,error:clean(up.payload?.error,300)})}catch(e){upstreamTimedOut=e instanceof DOMException&&e.name==='AbortError';console.error('upstream_timeout_or_error',{timeout:upstreamTimedOut,detail:clean(e instanceof Error?e.message:String(e),300)})}
+  try{const up=await invoke(base,'analyse-listing',headers,forwarded,80000);if(up.response.ok&&!up.payload?.error){payload=up.payload;analysis=up.payload.analysis||null}else console.error('upstream_non_ok',{status:up.response.status,error:clean(up.payload?.error,300)})}catch(e){upstreamTimedOut=e instanceof DOMException&&e.name==='AbortError';console.error('upstream_timeout_or_error',{timeout:upstreamTimedOut,detail:clean(e instanceof Error?e.message:String(e),300)})}
   if(!analysis)analysis=seedAnalysis(body)
   const risky=['high_risk','likely_counterfeit'].includes(String(analysis.authenticity_status||''));let usedFallback=false
   // A resale valuation does not depend on knowing the asking price - only profit and ROI do.
@@ -144,9 +144,25 @@ Deno.serve(async req=>{
   const selling=num(analysis.expected_selling_costs)||0,prep=num(analysis.estimated_prep_cost)||0,mid=num(analysis.resale_mid),quick=num(analysis.quick_sale_value)
   if(askAud!==null){analysis.seller_asking_price=askAud;analysis.acquisition_shipping_cost=shipAud;analysis.landed_acquisition_cost=shipAud!==null?+(askAud+shipAud).toFixed(2):null;if(mid!==null&&shipAud!==null){analysis.expected_profit=+(mid-selling-prep-askAud-shipAud).toFixed(2);const invested=askAud+shipAud+prep;analysis.expected_roi_percent=invested>0?+((analysis.expected_profit/invested)*100).toFixed(2):null;analysis.break_even_sale_price=+(askAud+shipAud+selling+prep).toFixed(2);const targetNet=Math.max(25,mid*.2);analysis.max_buy=Math.max(0,+(mid-selling-prep-shipAud-targetNet).toFixed(2));analysis.recommended_offer=Math.max(0,+((analysis.max_buy||0)*.9).toFixed(2))}if(quick!==null&&shipAud!==null)analysis.quick_sale_profit=+(quick-selling-prep-askAud-shipAud).toFixed(2)}
   if(shipAud===null){analysis.expected_profit=null;analysis.expected_roi_percent=null;analysis.max_buy=null;analysis.recommended_offer=null;analysis.break_even_sale_price=null}
-  if(usedFallback&&analysis.expected_profit!==null){if(analysis.expected_profit<0)analysis.recommendation='skip';else if(analysis.valuation_confidence<50)analysis.recommendation='negotiate'}
+  // On the fallback path the verdict must follow the economics we actually have. The seed verdict is
+  // 'verify_first', and leaking that through told the user to verify something when there was nothing
+  // to verify - the failure the contract forbids. A measured, asking-price-only valuation is never
+  // strong enough for BUY, so the ceiling here is NEGOTIATE with a concrete offer.
+  if(usedFallback&&num(analysis.resale_mid)!==null){
+   const profit=num(analysis.expected_profit),maxBuy=num(analysis.max_buy)
+   if(profit!==null&&profit<=0)analysis.recommendation='skip'
+   else if(profit!==null)analysis.recommendation='negotiate'
+   else if(analysis.recommendation==='verify_first')analysis.recommendation='negotiate'
+   if(!clean(analysis.next_action,10)){
+    if(analysis.recommendation==='skip')analysis.next_action=askAud!==null?`Skip this one. At A$${askAud.toFixed(2)} it does not clear its costs.`:'Skip this one. It does not clear its costs.'
+    else if(maxBuy!==null&&askAud!==null&&askAud>maxBuy)analysis.next_action=`Offer A$${Math.max(0,+(maxBuy*.9).toFixed(2))} and do not go above A$${maxBuy.toFixed(2)}. The asking price of A$${askAud.toFixed(2)} is above your maximum.`
+    else if(maxBuy!==null)analysis.next_action=`Buy at up to A$${maxBuy.toFixed(2)}. Open at A$${Math.max(0,+(maxBuy*.9).toFixed(2))}.`
+    else analysis.next_action='Confirm the asking price and delivery cost, then re-run the analysis for the full economics.'
+   }
+   if(upstreamTimedOut)analysis.assumptions=['FlippersAI ran out of time on the deep research stage, so this valuation came from the live market it measured rather than from sold comps. It is a system limit, not something the seller can clear up.',...(Array.isArray(analysis.assumptions)?analysis.assumptions:[])]
+  }
   recomputeOpportunityScores(analysis)
-  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v13-ebay-anchored',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
+  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v14-ebay-anchored',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
   return new Response(JSON.stringify(out),{headers:cors})
  }catch(e){const detail=clean(e instanceof Error?e.message:String(e),500);console.error('analyse_v2_failed',{diagnosticId,detail});return new Response(JSON.stringify({error:'FlippersAI could not complete this analysis.',error_code:'ANALYSIS_WRAPPER_FAILED',diagnostic_id:diagnosticId,detail,retryable:true}),{status:503,headers:cors})}
 })
