@@ -58,7 +58,7 @@ Return a compact factual packet in plain text with two sections: MARKET EVIDENCE
 LISTING CONTEXT:\n${ctx}`
   const started=Date.now()
   try{
-    const r=await client.responses.create({model:'gpt-5-mini',reasoning:{effort:'low'},tools:[{type:'web_search',user_location:{type:'approximate',country:'AU',city:'Melbourne',region:'Victoria',timezone:'Australia/Melbourne'}}],input:[{role:'user',content:[{type:'input_text',text:prompt}]}],store:false},{timeout:25000,maxRetries:0})
+    const r=await client.responses.create({model:'gpt-5-mini',reasoning:{effort:'low'},tools:[{type:'web_search',user_location:{type:'approximate',country:'AU',city:'Melbourne',region:'Victoria',timezone:'Australia/Melbourne'}}],input:[{role:'user',content:[{type:'input_text',text:prompt}]}],store:false},{timeout:50000,maxRetries:0})
     console.log('analyse_research_complete',{duration_ms:Date.now()-started})
     return clean(r.output_text,36000)
   }catch(err){
@@ -122,8 +122,8 @@ Mandatory decision order: IDENTITY → CATEGORY NORMS → AUTHENTICITY → CONDI
 5. If a category-specific factor materially affects value but is unknown from the listing, add the necessary question/inspection check. Do not ask for irrelevant information.
 6. AUTHENTICITY GATE: counterfeit-prone categories must be assessed. Price alone never proves fake. likely_counterfeit => skip. high_risk => skip/verify_first and score <=45. unresolved counterfeit risk cannot be buy/strong_buy.
 7. Separate MARKET ECONOMICS from PURCHASE PERMISSION. If authenticity is merely uncertain, still estimate genuine-item economics using researched evidence. Only likely_counterfeit/high_risk should invalidate purchase economics entirely.
-8. Market values may come ONLY from supplied research packet or explicit user/seller evidence. Never invent sold comps or URLs.
-9. If research contains no sold comps but has strong active/retail/specialist evidence, provide a conservative low-confidence resale range rather than leaving every money field blank.
+8. Market values may come ONLY from the supplied research packet, the MEASURED eBay AUSTRALIA MARKET block, or explicit user/seller evidence. The measured market is FlippersAI's own count of real live listings and is a permitted source of value in its own right, including when the research packet is empty or unavailable. Never invent sold comps or URLs.
+9. If there are no sold comps but there is strong active/retail/specialist evidence OR a measured eBay Australia market, provide a conservative low-confidence resale range rather than leaving every money field blank. Leaving resale_low/mid/high null when a measured market exists is a failure: the user is left with no answer when FlippersAI has real counted prices in hand. Set valuation_confidence to reflect that these are asking prices (roughly 35-50), not to zero out the valuation.
 10. Condition: preserve seller-stated condition when present; also assess photos. Adjust current-item resale for wear, missing category-critical accessories/packaging, modifications, opened/sealed state, grading/provenance and other category-specific value factors.
 11. evidence array must use only real URLs present in research. Community/forum sources may be evidence_type community_reference and must never be represented as sold-market evidence.
 12. expected_profit and ROI must include asking price + selling costs + prep costs where known.
@@ -135,10 +135,14 @@ Mandatory decision order: IDENTITY → CATEGORY NORMS → AUTHENTICITY → CONDI
     const content:any[]=[{type:'input_text',text:prompt}]
     for(const img of images)content.push({type:'input_image',image_url:img,detail:'auto'})
     let response
+    // The caller waits 80s in total. Research is allowed to run long because it is the stage that
+    // finds sold comps, so the decision stage takes whatever is left rather than a fixed slice -
+    // a fixed 50s each meant research was capped at 25s and timed out on every single run.
     const decisionStarted=Date.now()
+    const decisionBudget=Math.max(20000,76000-(decisionStarted-requestStarted))
     try{
-      response=await client.responses.create({model:'gpt-5-mini',reasoning:{effort:'low'},input:[{role:'user',content}],text:{format:{type:'json_schema',name:'resale_analysis_v9_category_aware',strict:true,schema}},store:false},{timeout:50000,maxRetries:0})
-      console.log('analyse_decision_complete',{duration_ms:Date.now()-decisionStarted,total_ms:Date.now()-requestStarted,research_available:researchOk})
+      response=await client.responses.create({model:'gpt-5-mini',reasoning:{effort:'low'},input:[{role:'user',content}],text:{format:{type:'json_schema',name:'resale_analysis_v9_category_aware',strict:true,schema}},store:false},{timeout:decisionBudget,maxRetries:0})
+      console.log('analyse_decision_complete',{duration_ms:Date.now()-decisionStarted,total_ms:Date.now()-requestStarted,research_available:researchOk,decision_budget_ms:decisionBudget})
     }catch(err){
       const message=err instanceof Error?err.message:String(err)
       console.error('decision_stage_failed',{duration_ms:Date.now()-decisionStarted,total_ms:Date.now()-requestStarted,detail:clean(message,700)})
