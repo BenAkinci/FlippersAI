@@ -161,8 +161,21 @@ Deno.serve(async req=>{
    }
    if(upstreamTimedOut)analysis.assumptions=['FlippersAI ran out of time on the deep research stage, so this valuation came from the live market it measured rather than from sold comps. It is a system limit, not something the seller can clear up.',...(Array.isArray(analysis.assumptions)?analysis.assumptions:[])]
   }
+  // NEGOTIATE is only honest when the gap is closeable. When the evidence says the item is worth
+  // far less than the ask, telling a beginner to go and haggle sends them into a negotiation they
+  // cannot win and should not want to win. Below the closeable gap, the answer is to walk.
+  const CLOSEABLE_GAP = 1.35
+  const finalProfit=num(analysis.expected_profit),finalMaxBuy=num(analysis.max_buy)
+  if(num(analysis.resale_mid)!==null&&finalProfit!==null&&finalProfit<=0){
+   if(finalMaxBuy===null||askAud===null||askAud>finalMaxBuy*CLOSEABLE_GAP){
+    analysis.recommendation='skip'
+    analysis.next_action=finalMaxBuy!==null&&askAud!==null
+     ?`Skip this one. It is worth about A$${finalMaxBuy.toFixed(2)} to you and the seller wants A$${askAud.toFixed(2)} - too far apart to negotiate. FlippersAI will keep looking.`
+     :'Skip this one. The evidence does not support the asking price. FlippersAI will keep looking.'
+   }else if(['strong_buy','buy'].includes(analysis.recommendation))analysis.recommendation='negotiate'
+  }
   recomputeOpportunityScores(analysis)
-  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v14-ebay-anchored',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
+  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v15-ebay-anchored',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
   return new Response(JSON.stringify(out),{headers:cors})
  }catch(e){const detail=clean(e instanceof Error?e.message:String(e),500);console.error('analyse_v2_failed',{diagnosticId,detail});return new Response(JSON.stringify({error:'FlippersAI could not complete this analysis.',error_code:'ANALYSIS_WRAPPER_FAILED',diagnostic_id:diagnosticId,detail,retryable:true}),{status:503,headers:cors})}
 })
