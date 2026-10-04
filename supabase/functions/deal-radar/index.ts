@@ -10,7 +10,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import OpenAI from 'npm:openai'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const ENGINE = 'deal-radar-v2.5-ebay-anchored'
+const ENGINE = 'deal-radar-v2.6-au-sold-only'
 // v2.5: every deal that reaches the resale check is first measured against live eBay AU listings
 // by the ebay-comps function (real counted prices, not a model's recollection). The measurement is
 // given to the researcher as the anchor, and if the researcher finds nothing the measurement itself
@@ -259,7 +259,7 @@ DEAL: ${deal.title} (retail deal price A$${buyPrice})
 Rules:
 - Use web search. Prefer, in order: eBay Australia SOLD/completed listings, StockX/GOAT (for sneakers/collectibles), other Australian resale marketplaces, active eBay AU listings. Retail prices are context only, not resale.
 - resale_mid = a realistic price a private seller achieves for this item NEW in Australia within ~30 days, in AUD. Not the highest ask.
-- resale_basis: 'sold' only if you found actual sold prices; 'active' if based on current listings; 'estimate' if only indirect evidence; 'none' if you could not find resale evidence (then resale values null).
+- resale_basis: 'sold' ONLY if you found actual sold prices on an AUSTRALIAN site (a .com.au / .au host). A completed sale on US eBay or any other overseas marketplace is NOT 'sold' here - a US sale price converted to AUD does not show what the item fetches in Australia, and shipping, demand and supply all differ. Cite overseas sales as 'other' and treat them as context only. Use 'active' if based on current listings; 'estimate' if only indirect evidence; 'none' if you could not find resale evidence (then resale values null).
 - Every evidence entry must be a real URL you actually saw, with the price you saw. Never fabricate URLs, prices or sold status. Fewer honest entries beat many weak ones.
 - selling_costs = typical total selling costs in AUD for this item (marketplace fees ~13% of sale plus payment/postage the seller absorbs).
 - confidence 0-100 reflects evidence quality and identity certainty, not optimism.
@@ -290,6 +290,25 @@ function economics(x: any, buy: number, delivery: number | null) {
 // v2.3 honesty rules: asking prices overstate what things sell for, so 'active'-only evidence is
 // discounted by ACTIVE_HAIRCUT before economics, and a resale over TOO_GOOD_MULTIPLE x the buy price
 // needs actual sold prices to qualify.
+// A sold comp only proves what Australians pay if the sale happened in Australia. The first deal
+// v2.5 ever qualified - a Bunnings kamado at A$148, "sold" basis, A$125 profit - rested on a single
+// US eBay sale converted at spot, while every AU link in its own evidence was an active ask and its
+// own risk list said "Limited verified AU sold data". Labelled honestly as active it would have been
+// rejected by the too-good guard. So the label is now checked against the evidence rather than
+// trusted: sold basis needs at least one sold comp on an Australian host.
+const AU_HOST = /(^|\.)[a-z0-9-]+\.au$/i
+function auHost(url: unknown) {
+  try { return AU_HOST.test(new URL(String(url)).hostname) } catch { return false }
+}
+function requireAuSold(x: any) {
+  if (x.resale_basis !== 'sold') return x
+  const auSold = (x.evidence || []).some((e: any) => e?.kind === 'sold' && auHost(e?.url))
+  if (auSold) return x
+  const risks = [...(x.risks || []).slice(0, 2), 'No Australian sold comps']
+  return { ...x, resale_basis: 'active', risks,
+    summary: clean(`${x.summary || ''} FlippersAI downgraded this from sold to active evidence: no sold comp on an Australian site was cited, so overseas sale prices are treated as context, not proof of what it sells for here.`, 600) }
+}
+
 const ACTIVE_HAIRCUT = 0.85
 const TOO_GOOD_MULTIPLE = 2
 function haircut(x: any) {
@@ -422,7 +441,7 @@ async function run(db: any, client: OpenAI, runId: string) {
   const results = await mapLimit(picked, EVAL_CONCURRENCY, async p => {
     const ebay = await ebayMarket(p.name, p.buy)
     if (ebay) ebayMeasured++
-    let x = haircut(await evaluate(client, p.name, p.buy, p.it, ebay))
+    let x = haircut(requireAuSold(await evaluate(client, p.name, p.buy, p.it, ebay)))
     // The researcher came back empty but a real market was counted: use the measurement.
     if (ebay && (x.resale_basis === 'none' || num(x.resale_mid) === null)) {
       const fb = ebayValuation(ebay)

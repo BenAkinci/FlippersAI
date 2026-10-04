@@ -164,6 +164,20 @@ Deno.serve(async req=>{
   // NEGOTIATE is only honest when the gap is closeable. When the evidence says the item is worth
   // far less than the ask, telling a beginner to go and haggle sends them into a negotiation they
   // cannot win and should not want to win. Below the closeable gap, the answer is to walk.
+  // A sold comp only proves what Australians pay if the sale happened in Australia. Deal Radar
+  // qualified a deal on a single US eBay sale converted at spot while every AU link in its own
+  // evidence was an active ask, so the engine's own sold count is re-derived here from the evidence
+  // rather than trusted: overseas sales are context, not proof of what an item fetches here.
+  const auSold=(Array.isArray(analysis.evidence)?analysis.evidence:[]).filter((e:any)=>{
+   if(e?.sold!==true&&e?.evidence_type!=='sold_comp')return false
+   try{return /(^|\.)[a-z0-9-]+\.au$/i.test(new URL(String(e?.source_url)).hostname)}catch{return false}
+  }).length
+  const claimedSold=num(analysis.resale_evidence_count)||0
+  if(auSold<claimedSold){
+   analysis.resale_evidence_count=auSold
+   if(auSold===0)analysis.assumptions=[`The sold prices found for this item were from overseas marketplaces, not Australian ones. A sale price in another country converted to AUD does not show what this fetches here, so FlippersAI is not counting it as proof.`,...(Array.isArray(analysis.assumptions)?analysis.assumptions:[])]
+  }
+
   // A valuation resting only on active asking prices is not strong enough to tell anyone to buy.
   // Today's evidence: sold comps put a used Switch OLED at A$185 while live asks sat at A$348-380.
   // Acting on asks is how a user buys a loss-maker, so BUY needs at least one sold comp behind it.
@@ -183,7 +197,7 @@ Deno.serve(async req=>{
    }else if(['strong_buy','buy'].includes(analysis.recommendation))analysis.recommendation='negotiate'
   }
   recomputeOpportunityScores(analysis)
-  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v16-ebay-anchored',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
+  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v17-au-sold-only',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
   return new Response(JSON.stringify(out),{headers:cors})
  }catch(e){const detail=clean(e instanceof Error?e.message:String(e),500);console.error('analyse_v2_failed',{diagnosticId,detail});return new Response(JSON.stringify({error:'FlippersAI could not complete this analysis.',error_code:'ANALYSIS_WRAPPER_FAILED',diagnostic_id:diagnosticId,detail,retryable:true}),{status:503,headers:cors})}
 })
