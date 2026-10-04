@@ -14,3 +14,4 @@
 @media(max-width:980px){.direct-analysis-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.direct-analysis-grid{grid-template-columns:1fr}}
 @media(max-width:640px){.direct-analysis-result{padding:18px;border-radius:18px}.direct-analysis-result-head{flex-direction:column}.direct-analysis-score{width:100%;box-sizing:border-box}.direct-analysis-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.direct-analysis-loading{align-items:flex-start}}
 @media(prefers-reduced-motion:reduce){.direct-analysis-spinner{animation:none}}
+.direct-analysis-verdict-note{margin:16px 0 0;padding:11px 14px;border:1px solid #f0d8a8;border-radius:12px;background:#fffaf0;color:#6b5320;font-size:13px;line-height:1.45}
