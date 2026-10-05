@@ -10,7 +10,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import OpenAI from 'npm:openai'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const ENGINE = 'deal-radar-v2.6-au-sold-only'
+const ENGINE = 'deal-radar-v2.7-au-sold-only'
 // v2.5: every deal that reaches the resale check is first measured against live eBay AU listings
 // by the ebay-comps function (real counted prices, not a model's recollection). The measurement is
 // given to the researcher as the anchor, and if the researcher finds nothing the measurement itself
@@ -466,13 +466,22 @@ async function run(db: any, client: OpenAI, runId: string) {
   stats.evaluated = results.filter(r => r.status === 'fulfilled').length
   stats.qualified = results.filter(r => r.status === 'fulfilled' && r.value === 'qualified').length
   const evalErrors = results.filter(r => r.status === 'rejected').map(r => clean(errText((r as PromiseRejectedResult).reason), 200))
-  // Re-check deals qualified by older rules in the last 14 days against the current honesty rules.
-  const { data: live } = await db.from('radar_deals').select('source_url,resale_basis,resale_mid,buy_price,engine_version').eq('status', 'qualified').gte('checked_at', new Date(Date.now() - 14 * 86400000).toISOString())
+  // Re-check deals qualified by older rules against the current honesty rules. No age window: a deal
+  // on screen is being shown to a user now, so it has to be right now, and both checks below are
+  // local - they read the stored row and cost nothing. Two of the nine deals qualified before v2.6
+  // rested entirely on overseas sold comps and were still on display.
+  const { data: live } = await db.from('radar_deals').select('source_url,resale_basis,resale_mid,buy_price,engine_version,evidence').eq('status', 'qualified')
   let demoted = 0
   for (const d of live || []) {
-    if ((d as any).engine_version === ENGINE) continue
-    if (tooGood((d as any).resale_basis, num((d as any).resale_mid), num((d as any).buy_price))) {
-      await db.from('radar_deals').update({ status: 'rejected', reject_reason: 'Margin looks too good without sold prices to prove it (re-checked)', updated_at: new Date().toISOString() }).eq('source_url', (d as any).source_url)
+    const row = d as any
+    if (row.engine_version === ENGINE) continue
+    const reason = tooGood(row.resale_basis, num(row.resale_mid), num(row.buy_price))
+      ? 'Margin looks too good without sold prices to prove it (re-checked)'
+      : row.resale_basis === 'sold' && !(row.evidence || []).some((e: any) => e?.kind === 'sold' && auHost(e?.url))
+        ? 'Sold prices cited were not from Australian sites, so they do not show what it fetches here (re-checked)'
+        : ''
+    if (reason) {
+      await db.from('radar_deals').update({ status: 'rejected', reject_reason: reason, updated_at: new Date().toISOString() }).eq('source_url', row.source_url)
       demoted++
     }
   }
