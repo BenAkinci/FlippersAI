@@ -134,6 +134,17 @@ Deno.serve(async req=>{
   let payload:any=null,analysis:any=null,upstreamTimedOut=false
   try{const up=await invoke(base,'analyse-listing',headers,forwarded,80000);if(up.response.ok&&!up.payload?.error){payload=up.payload;analysis=up.payload.analysis||null}else console.error('upstream_non_ok',{status:up.response.status,error:clean(up.payload?.error,300)})}catch(e){upstreamTimedOut=e instanceof DOMException&&e.name==='AbortError';console.error('upstream_timeout_or_error',{timeout:upstreamTimedOut,detail:clean(e instanceof Error?e.message:String(e),300)})}
   if(!analysis)analysis=seedAnalysis(body)
+  // The schema says valuation_confidence is 0-100, but the engine sometimes answers on a 0-1 scale:
+  // a researched valuation with real comps came back as 0.7. That is in range, so the schema lets it
+  // through, and everything downstream then reads it as 0.7 PERCENT - the evidence term in the score
+  // collapses from 14 points to 0.14, the "cap confidence at 50" guard never fires, and the user is
+  // shown 1% confidence on a valuation that was actually well evidenced. A fraction is the only
+  // sensible reading of a value in (0,1], so it is scaled back up and logged.
+  const rawConfidence=num(analysis.valuation_confidence)
+  if(rawConfidence!==null&&rawConfidence>0&&rawConfidence<=1){
+   analysis.valuation_confidence=+(rawConfidence*100).toFixed(0)
+   console.error('confidence_scale_corrected',{diagnosticId,raw:rawConfidence,corrected:analysis.valuation_confidence})
+  }
   const risky=['high_risk','likely_counterfeit'].includes(String(analysis.authenticity_status||''));let usedFallback=false
   // A resale valuation does not depend on knowing the asking price - only profit and ROI do.
   // Gating the fallback on a verified ask meant a timed-out analysis with an unparsed price
@@ -197,7 +208,7 @@ Deno.serve(async req=>{
    }else if(['strong_buy','buy'].includes(analysis.recommendation))analysis.recommendation='negotiate'
   }
   recomputeOpportunityScores(analysis)
-  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v17-au-sold-only',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
+  const out={...(payload||{}),analysis,engine_version:'flippers-stage2a-v18-au-sold-only',ebay_market:ebay?{query:ebay.query,listings:ebay.listings,median:ebay.median,low:ebay.low,high:ebay.high,enough:ebay.enough_for_a_market_view!==false}:null,valuation_mode:usedFallback?'estimated':num(analysis.resale_mid)!==null?'researched':'unavailable',research_timeout_fallback:upstreamTimedOut,diagnostic_id:diagnosticId,execution_ms:Date.now()-started,price_integrity:{authoritative_price_aud:askAud,original_price:inputPrice,original_currency:inputCurrency,fx_rate_to_aud:fxRate,acquisition_shipping_aud:shipAud,original_shipping:inputShipping,original_shipping_currency:shippingCurrency,shipping_fx_rate_to_aud:shipFx}}
   return new Response(JSON.stringify(out),{headers:cors})
  }catch(e){const detail=clean(e instanceof Error?e.message:String(e),500);console.error('analyse_v2_failed',{diagnosticId,detail});return new Response(JSON.stringify({error:'FlippersAI could not complete this analysis.',error_code:'ANALYSIS_WRAPPER_FAILED',diagnostic_id:diagnosticId,detail,retryable:true}),{status:503,headers:cors})}
 })
